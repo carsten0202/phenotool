@@ -4,11 +4,6 @@ import click
 
 #
 # -%  Class pkclick.gzFile  %-
-magic_dict = {
-	b"\x1f\x8b\x08"     : "gz",
-	b"\x42\x5a\x68"     : "bz2",
-	b"\x50\x4b\x03\x04" : "zip"
-}
 
 class gzFile(click.File):
 	"""A Class for detecting compressed files and automagically decrompress them."""
@@ -30,7 +25,7 @@ class gzFile(click.File):
 		return f
 
 	@staticmethod
-	def _getziptype(f, magic_disc):
+	def _getziptype(f, magic_dict):
 		if f.seekable():
 			file_start = f.read(max(len(x) for x in magic_dict))
 			f.seek(0)
