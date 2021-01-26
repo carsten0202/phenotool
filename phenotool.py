@@ -2,7 +2,7 @@
 
 # An Idea
 
-Version = """0.3 (Development Version)
+Version = """0.4 (Development Version)
 """
 
 # A handy tool to fix and re-afirm sample files for GWAS
@@ -56,6 +56,7 @@ Default is to output all samples in the input files in the order they are encoun
 import click
 #import pkclick
 import pkcsv as csv
+import pkpheno as Pheno
 import sys
 from pkclick import CSV, SampleList
 
@@ -83,30 +84,52 @@ def main():
 	pass
 
 @main.command(cls=StdCommand, no_args_is_help=True)
-#@click.option("-O", "--output-type", default="snptest", type=click.Choice(["psam","snptest"], case_sensitive=False),
-#		help="Default is 'snptest'")
+@click.option('-c', '--columns', type=CSV(), default="", help="Comma separated list of columns to extract.")
+def extract(files, columns):
+	"""Extract..."""
+	pheno = Pheno.Phenotype(csv.DictReader(files[0]), columns=columns)
+	for fileobj in files[1:]:
+		pheno_new = Pheno.Phenotype(csv.DictReader(fileobj), columns=columns)
+		pheno = pheno.combine_first(pheno_new)
+	pheno.write()
+
+@main.command(cls=StdCommand, no_args_is_help=True)
+@click.option('-c', '--columns', type=CSV(), default="", help="Comma separated list of columns to extract.")
+def plink2(files, columns):
+	"""Prepare and output phenotupes in psam format for use with Plink2."""
+	pheno = Pheno.Psam(csv.DictReader(files[0]), columns=columns)
+	for fileobj in files[1:]:
+		pheno_new = Pheno.Psam(csv.DictReader(fileobj), columns=columns)
+		pheno = pheno.combine_first(pheno_new)
+	pheno.write()
+
+
+@main.command(cls=StdCommand, no_args_is_help=True)
 @click.option('-c', '--covariates', type=CSV(), default="", help="Comma separated list of columns with covariates. Print only these columns (plus any mandatory columns)")
 @click.option('-p', '--phenotypes', type=CSV(), default="", help="Comma separated list of columns with phenotypes.")
-@click.option("-s", "--samples", type=SampleList(mode='rb'), help=OPTION_samples)
+@click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTION_samples)
 def snptest(files, covariates, phenotypes, samples):
 	"""Prepare and output phenotypes in sample file format suitable for use with Snptest."""
-	import pkpheno as Pheno
-
-	# Read & Merge input files
 	pheno = Pheno.Snptest(csv.DictReader(files[0]), covariates=covariates, phenotypes=phenotypes, samples=samples)
 	for fileobj in files[1:]:
 		pheno_new = Pheno.Snptest(csv.DictReader(fileobj), covariates=covariates, phenotypes=phenotypes, samples=samples)
 		pheno = pheno.combine_first(pheno_new)
-
-	# Output
 	pheno.write()
 
+@main.command(cls=StdCommand, no_args_is_help=True)
+@click.option('-c', '--columns', type=CSV(), default="", help="Comma separated list of columns to perform normalization on.")
+def transform(files, columns):
+	"""Used for testing and development."""
+	pheno = Pheno.Phenotype(csv.DictReader(files[0]))
+	for fileobj in files[1:]:
+		pheno_new = Pheno.Phenotype(csv.DictReader(fileobj))
+		pheno = pheno.combine_first(pheno_new)
+	pheno = pheno.columns_rankINT(columns=columns) # Perform rankINT
+	pheno.write()
 
-
-
-##################################################
+# --%%  END: Commands  %%--
 #
-# --%%  RUN: Subroutines  %%--
+##################################################
 
 
 

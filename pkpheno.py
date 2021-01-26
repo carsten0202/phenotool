@@ -37,9 +37,9 @@ class Phenotype:
 
 	def __init__(self, *args, columns=[], samples=[], **kwargs):
 		self._obj = pd.DataFrame(*args, **kwargs)
-		self._validate(self)
 		self._obj = self._obj.set_index(self._obj.columns[0])
-		self = self._set_magic_kcol()
+		self._obj = self._set_magic_kcol()
+		self._validate(self)
 		self = self.set_columns(columns=columns)
 		self = self.set_samples(samples=samples)
 		if self.is_sample_data():
@@ -55,7 +55,7 @@ class Phenotype:
 	def _set_magic_kcol(self):
 		for k, v in self.MAGIC_COLS.items():
 			self._obj = self._obj.rename(dict(zip(v, [k] * len(v))), axis=1)
-		return self
+		return self._obj
 
 	@staticmethod
 	def _validate(obj):
@@ -82,36 +82,44 @@ class Phenotype:
 		self._obj = self._obj.fillna(np.NaN)
 		return self
 
-	def get_all_magic(self):
-		"""Return: All magic cols in self as list"""
-		mcols = [self.get_magic_kcol(mcol) for mcol in self.MAGIC_COLS if self.get_magic_kcol(mcol)]
-		return pd.Index(mcols).drop_duplicates().to_list()
+	@property
+	def colnames(self):
+		"""Return: All colnames in _obj as list"""
+		return self._obj.columns.to_list()
 
 	@property
 	def colnames_magic(self):
-		"""Return: All magic colnames supported by class as list"""
+		"""Return: All magic colnames supported by class as list."""
 		return list(self.MAGIC_COLS.keys())
 
-	def get_magic_kcol(self, colname):
-		"""Return: Names of magic cols as list or str (same type as 'colname')"""
-		if isinstance(colname, list):
-			mcols = []
-			for col in colname:
-				mcols.extend([k for k in self.MAGIC_COLS[col] if k in self._obj][0:1])
-			return mcols
-		else:
-			for kcol in [k for k in self.MAGIC_COLS[colname] if k in self._obj]:
-				return kcol
-		return None
+	@property
+	def colnames_normal(self):
+		"""Return: All colnames in _obj which are not magical."""
+		return [col for col in self._obj.columns if col not in self.colnames_magic]
 
-# set_columns will fail if phenotypes contain magic cols under alternative names
+	def columns_rankINT(self, columns=[]):
+		"""Return: Self after Rank-based inverse normally transformation on cols given by 'columns'. Default: All normal columns"""
+		columns = self.colnames_translate(columns) if columns else self.colnames_normal
+		for col in columns:
+			self._obj[col] = rank_INT(self._obj[col])
+		return self
+
+	def colnames_translate(self, columns):
+		"""Translate names in columns to the canonical magic column names used by self."""
+		outcols = []
+		for col in columns:
+			mcol = [k for k in self.colnames_magic if col in self.MAGIC_COLS[k]]
+			outcols.extend(mcol if mcol else [col])
+		return outcols
+
 	def set_columns(self, columns=[]):
 		"""Return: Specified columns + all magic columns; columns: a list of column names to extract"""
-		columns = columns if columns else self._obj.columns
-		index = pd.Index(self.colnames_magic + columns).drop_duplicates().to_list()
+		columns = self.colnames_translate(columns) if columns else self.colnames
+		index = pd.Index(self.colnames_magic).append(pd.Index(columns)).drop_duplicates().to_list()
 		cols = [col for col in index if col in self._obj]
 		self._obj = self._obj.loc[:,cols]
 		if not index in cols:
+			# This warning triggers too often/early
 			warnings.warn("Not all specified phenotypes were found in input files.")
 		return self
 
@@ -121,10 +129,48 @@ class Phenotype:
 		# INSERT: warnings.warn("Not all samples were found in input. Some subjects will have all missing values.")
 		return self
 
+	def write(self):
+		print(' '.join(['ID'] + self.colnames))
+		self._obj.to_csv(sys.stdout, sep=' ', na_rep='NA', header=False)
+
 # --%%	END: Define CLASS pheno  %%--
 #
 ##################################################
 
+
+
+# Inspired by: https://github.com/edm1/rank-based-INT/blob/master/rank_based_inverse_normal_transformation.py
+def rank_INT(series, c=3.0/8, stochastic=True):
+	"""Perform rank-based inverse normal transformation on pandas series.
+	   If stochastic is True ties are given rank randomly, otherwise ties will
+	   share the same value. NaN values are ignored.
+	   Args:
+		param1 (pandas.Series):   Series of values to transform
+		param2 (Optional[float]): Constand parameter (Bloms constant)
+		param3 (Optional[bool]):  Whether to randomise rank of ties
+	   Returns:
+		pandas.Series"""
+	import os
+	import scipy.stats as ss
+	def rank_to_normal(rank, c, n):
+		x = (rank - c) / (n - 2*c + 1) # Standard quantile function
+		return ss.norm.ppf(x)
+
+	# Check input
+	assert isinstance(series, pd.Series)
+	assert isinstance(c, float)
+
+	np.random.seed(123) # Set seed
+	orig_idx = series.index # Take original series indexes
+	series = series.loc[~pd.isnull(series)] # Drop NaNs
+	if stochastic:
+		series = series.loc[np.random.permutation(series.index)] # Shuffle by index
+		rank = ss.rankdata(series, method="ordinal") # Get rank, ties are determined by their position in the series (hence why we randomised the series)
+	else:
+		rank = ss.rankdata(series, method="average") # Get rank, ties are averaged
+	rank = pd.Series(rank, index=series.index) # Convert numpy array back to series
+	transformed = rank.apply(rank_to_normal, c=c, n=len(rank)) # Convert rank to normal distribution
+	return transformed[orig_idx]
 
 
 
@@ -213,7 +259,7 @@ class Snptest(Phenotype):
 		return obj
 
 	def write(self):
-# NOTE : All phenotypes should appear after the covariates in this file.
+# NOTE: All phenotypes should appear after the covariates in this file.
 		neworder = pd.Index(["ID_2","missing","sex"]).append(self._obj.columns).drop_duplicates(keep='first')
 		self._obj = self._obj[neworder]
 		print(' '.join(['ID_1'] + self._obj.columns.to_list()))
@@ -232,20 +278,35 @@ class Snptest(Phenotype):
 # --%%	RUN: Define CLASS Psam (Plink2)  %%--
 
 class Psam(Phenotype):
-	"""Holds phenotypes in a format appropriate for Plink2"""
+	"""Holds phenotypes in a format appropriate for Plink2.
+	Documentation can be found here:
+	https://www.cog-genomics.org/plink/2.0/formats#psam
+	"""
+
+	MAGIC_COLS = {"IID":     Phenotype.MAGIC_COLS["IID"], # Not really magic; the ID column is always the first column, regardless of name
+	              "FID":     Phenotype.MAGIC_COLS["FID"],
+	              "MAT":     Phenotype.MAGIC_COLS["MAT"],
+	              "PAT":     Phenotype.MAGIC_COLS["PAT"],
+	              "SEX":     Phenotype.MAGIC_COLS['SEX'], # SEX should be encoded with males as '1', females as '2' and missing as '0' or 'NA'
+	              "SID":     Phenotype.MAGIC_COLS['SID']} # SID is not really supported
+
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
+		self._obj['IID'] = self._obj.index
+		self._obj['PAT'] = self._obj.get('PAT', 0)
+		self._obj['MAT'] = self._obj.get('MAT', 0)
+		self._obj['SEX'] = pd.Categorical(self._obj.get('SEX', ['']*len(self._obj.index)))
+		self._obj['SEX'] = self._obj['SEX'].cat.rename_categories({'M' : 1, 'Male' : 1, 'male' : 1, 'F' : 2, 'Female' : 2, 'female' : 2})
 
-#	def writepsam(self):
-#		self._obj["IID"] = self._obj.index
-#		if self._get_magic_kcol("MISSING"):
-#			self._obj.drop(columns=self._get_magic_kcol("MISSING"), inplace=True)
-#		mcols = {self._get_magic_kcol(c):c for c in ["FID","IID","SID","PAT","MAT","SEX"] if self._get_magic_kcol(c)}
-#		self._obj.rename(columns=mcols,inplace=True)
-#		neworder = pd.Index(mcols.values()).append(self._obj.columns).drop_duplicates(keep='first')
-#		self._obj = self._obj[neworder]
-#		print("#", end="")
-#		self._obj.to_csv(sys.stdout, sep='\t', na_rep='NA', index=False)
+	def combine_first(self, other, *args, **kwargs):
+		obj = super().combine_first(other, *args, **kwargs)
+		return obj
+
+	def write(self):
+		neworder = pd.Index(["FID","IID","PAT","MAT","SEX"]).append(self._obj.columns).drop_duplicates(keep='first')
+		self._obj = self._obj[neworder]
+		print("#", end="")
+		self._obj.to_csv(sys.stdout, sep='\t', na_rep='NA', index=False)
 
 # --%%	END: Define CLASS Psam (Plink2)  %%--
 #
