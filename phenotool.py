@@ -2,7 +2,7 @@
 
 # An Idea
 
-Version = """0.6 (Development Version)
+Version = """0.7 (Development Version)
 """
 
 # A handy tool to fix and re-afirm sample files for GWAS
@@ -102,8 +102,9 @@ Outputs sample information in formats appropriate for popular GWAS tools includi
 #		pheno = pheno.combine_first(pheno_new)
 #	pheno.write()
 
-@main.command(cls=StdCommand, no_args_is_help=True)
-def pepcsv(files):
+@main.command(cls=StdCommand, no_args_is_help=True, hidden=True)
+@click.option('-c', '--columns', type=CSV(), default="", help=OPTION.columns)
+def pepcsv(files, columns):
 	"""NOT IMPLEMENTED YET. Output CSV file suitable for PEP.
 
 The Portable Encapsulated Projects (PEP for short) community effort to facilitate the portability, reusability and
@@ -125,7 +126,6 @@ http://pep.databio.org/en/latest/
 @main.command(cls=StdCommand, no_args_is_help=True)
 @click.option('-c', '--columns', type=CSV(), default="", help=OPTION.columns)
 @click.option('-f', '--fam', type=str, metavar='COLUMN', default=None, help=OPTION.fam)
-# @click.option('-p', '--pheno', is_flag=True, default=False, help=OPTION.pheno)
 def plink(files, columns, fam):
 	"""Output phenotypes in psam/fam format for use with Plink.
 
@@ -163,16 +163,23 @@ https://www.cog-genomics.org/plink/1.9/formats#fam
 
 
 @main.command(cls=StdCommand, no_args_is_help=True)
-def RVtest(files):
-	"""NOI IMPLEMENTED YET. Use 'plink' format command.
+@click.option('-c', '--columns', type=CSV(), default="", help=OPTION.columns)
+def rvtest(files, columns):
+	"""UNTESTED; Output phenotypes in psam-like format for RVtest.
 
-RVtest phenotype files are de-facto a subset of the psam format; i.e. plink2 files with a few caveats.
+RVtest phenotype files are very similar to the psam format. They are essentially plink2 files with a few caveats. The
+names 'fatid' and 'matid' are used for paternal and maternal ids and 'sex' is encoded 0=males,1=females.
 
 \b
 For more on RVtest phenotype files, please refer to:
 http://zhanxw.github.io/rvtests/#phenotype-file
 """
-	pass
+	import pkpheno as Pheno
+	pheno = Pheno.RVtest(csv.DictReader(files[0]), columns=columns)
+	for fileobj in files[1:]:
+		pheno_new = Pheno.RVtest(csv.DictReader(fileobj), columns=columns)
+		pheno = pheno.combine_first(pheno_new)
+	pheno.write()
 
 
 @main.command(cls=StdCommand, no_args_is_help=True)
@@ -209,7 +216,7 @@ https://jmarchini.org/file-formats/
 	pheno.write()
 
 # Currently implementing transform routines: rankINT is functional
-@main.command(cls=StdCommand, no_args_is_help=True)
+@main.command(cls=StdCommand, no_args_is_help=True, hidden=True)
 @click.option('-c', '--columns', type=CSV(), default="", help="Comma separated list of columns to perform normalization on.")
 def test(files, columns):
 	"""Used for testing and development."""
