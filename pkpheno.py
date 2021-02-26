@@ -6,11 +6,13 @@
 #
 # --%%	RUN: Perform Basic Setup  %%--
 
+import logging
 import numpy as np
 import pandas as pd
-import pkcsv as csv
 import sys
 import warnings
+
+import pkcsv as csv
 
 # --%%	END: Perform Basic Setup  %%--
 #
@@ -27,24 +29,24 @@ import warnings
 class Phenotype:
 	"""A handy-dandy object for storing phenotypes. Will be cool to also import into other scripts when working with phenotypes"""
 
-	MAGIC_COLS = {"IID":     ["ID","id","ID_1","Id_1","id_1","IID","Iid","iid"], # Not really magic; the ID column is always the first column, regardless of name
+	MAGIC_COLS = {"IID":     ["ID","id","ID_1","Id_1","id_1","IID","Iid","iid","particid"], # Not really magic; the ID column is always the first column, regardless of name
 	              "FID":     ["FID","Fid","fid","ID_2","Id_2","id_2"],
 	              "MAT":     ["MAT"],
 	              "MISSING": ["MISSING","Missing","missing"],
 	              "PAT":     ["PAT"],
-	              "SEX":     ["SEX","Sex","sex"], # SEX should be encoded with males as '1' or 'M'; females as '2' or 'F'
+	              "SEX":     ["SEX","Sex","sex","GENDER","Gender","gender"], # SEX should be encoded with males as '1' or 'M'; females as '2' or 'F'
 	              "SID":     ["SID"]}
 
 	def __init__(self, *args, columns=[], samples=[], **kwargs):
 		self._obj = pd.DataFrame(*args, **kwargs)
-		self._obj = self._obj.set_index(self._obj.columns[0])
 		self._obj = self._set_magic_kcol()
-		self._validate(self)
+		self._obj = self._obj.set_index(list(self.MAGIC_COLS.keys())[0])
 		self = self.set_columns(columns=columns)
 		self = self.set_samples(samples=samples)
 		if self.is_sample_data():
 			self._sampletypes = self._obj.index[0]
 			self._obj = self._obj.drop(self._obj.index[0])
+		self._validate(self._obj)
 
 # Maybe move this to a method? Like 'standardize', or 'conform'?
 		self._obj.replace('NA', np.NaN, inplace=True)
@@ -58,15 +60,27 @@ class Phenotype:
 		return self._obj
 
 	@staticmethod
-	def _validate(obj):
+	def _validate(obj, warn=False):
 		# Check What? 
 		# We should check the SEX column, if it is there...
+		# We should check that all columns have headers and that the headers are strings (numerical headers usually indicates a problem).
 		# We should check that there is a header (difficult...)
 		# We should check that there is an id column
 		# We could check for 'Inf' and other suspect values
 		# We could check that there are no duplicate magic cols? No duplicates in general?
 		# Sex? ()
-		pass
+		# Need to recognize R's one-header-name-short-stupid format
+		# Option to set the ID and a warning if it's not recognized
+		#	We actually need ways to specify custom names for all magic cols...
+		if warn:
+			for anyna,allna in [(s[1].isna().any(), s[1].isna().all()) for s in obj.iterrows()]:
+				if allna:
+					warnings.warn("Dataset contains samples without any associated data; these samples will have all missing values.")
+					# We can add logging.warning('message') here for additional details.
+				elif anyna:
+					warnings.warn("The dataset contains missing values.")
+#			if not index in cols:
+#				warnings.warn("Not all specified phenotypes were found in input files.")
 
 	def is_sample_data(self):
 		"""0 (for the first identifier column)
@@ -118,20 +132,16 @@ class Phenotype:
 		index = pd.Index(self.colnames_magic).append(pd.Index(columns)).drop_duplicates().to_list()
 		cols = [col for col in index if col in self._obj]
 		self._obj = self._obj.loc[:,cols]
-		if not index in cols:
-			# This warning triggers too often/early
-			warnings.warn("Not all specified phenotypes were found in input files.")
 		return self
 
 	def set_samples(self, samples=[]):
 		if samples:
 			self._obj = self._obj.reindex(samples)
-		# INSERT: warnings.warn("Not all samples were found in input. Some subjects will have all missing values.")
 		return self
 
-	def write(self):
-		print(' '.join(['ID'] + self.colnames))
-		self._obj.to_csv(sys.stdout, sep=' ', na_rep='NA', header=False)
+	def write(self, dest=sys.stdout, *args, **kwargs):
+		self._validate(self._obj, warn=True)
+		self._obj.to_csv(dest, *args, **kwargs)
 
 # --%%	END: Define CLASS pheno  %%--
 #
@@ -191,14 +201,16 @@ class Snptest(Phenotype):
 	https://jmarchini.org/file-formats/
 	"""
 
-	MAGIC_COLS = {'ID_2'    : Phenotype.MAGIC_COLS['FID'],
+	MAGIC_COLS = {'ID_1'    : Phenotype.MAGIC_COLS['IID'],
+	              'ID_2'    : Phenotype.MAGIC_COLS['FID'],
 	              'missing' : Phenotype.MAGIC_COLS['MISSING'],
 	              'sex'     : Phenotype.MAGIC_COLS['SEX']}
 
 	def __init__(self, *args, columns=[], covariates=[], phenotypes=[], **kwargs):
-		super().__init__(*args, columns=columns+covariates+phenotypes,**kwargs)
+		super().__init__(*args, columns=columns+covariates+phenotypes, **kwargs)
 		# We should then do some coversion here..
 		self._obj['ID_2'] = self._obj.index
+		self._obj['missing'] = self._obj.get('missing', pd.Series(pd.NA * self._obj.index.size, index=self._obj.index))
 		self._obj['sex'] = pd.Categorical(self._obj.get('sex', [""]*len(self._obj.index)))
 		self._obj["sex"] = self._obj["sex"].cat.rename_categories({1: 'male', 2: 'female'})
 		self.covariates = covariates
@@ -208,7 +220,7 @@ class Snptest(Phenotype):
 	def coltype(self):
 		"""Set the column type for the pseudo-type-header in sample files.
 		Values are:
-		0 (for the first identifier column)
+		0 (for the identifier column(s) and for the 'missing' column)
 		D (for a column containing discrete values, e.g. a set of strings)
 		P or C - for columns containing continuous value - each value must be numerical, or a missing value.
 		B - for a column containing a binary trait. The values in this column must be '0', '1', 'control', or 'case'.
@@ -220,18 +232,18 @@ class Snptest(Phenotype):
 		stype = pd.Series(index=self._obj.columns, dtype='object')
 		for colname in self._obj.columns:
 			Dtype = self._obj[colname].dropna().convert_dtypes().dtype
-			if Dtype.name == 'category':
+			if colname in ['ID_1', 'ID_2', 'missing']:
+				stype[colname] = '0'
+			elif Dtype.name == 'category':
 				stype[colname] = 'B' if all(self._obj[colname].dropna().isin([0,1,'0','1','case','control'])) else 'D'
 			elif pd.api.types.is_numeric_dtype(Dtype):
 				stype[colname] = 'C'
-			elif Dtype == 'string':
+			elif Dtype.name == 'string':
 				stype[colname] = 'D'
 			else:
-				warnings.warn("Unable to properly identify datatype for {0}. Setting to 'D'.".format(colname))
+				warnings.warn("Unable to properly identify datatype for column '{0}'. Setting to 'D' (Discrete values).".format(colname))
 		stype[self.covariates] = 'C'
 		stype[self.phenotypes] = 'P'
-		stype['ID_2'] = '0'
-		stype['missing'] = '0'
 		return stype
 
 	@property
@@ -258,13 +270,14 @@ class Snptest(Phenotype):
 		obj.phenotypes = self.phenotypes.union(other.phenotypes)
 		return obj
 
-	def write(self):
+	def write(self, *args, dest=sys.stdout, **kwargs):
 # NOTE: All phenotypes should appear after the covariates in this file.
 		neworder = pd.Index(["ID_2","missing","sex"]).append(self._obj.columns).drop_duplicates(keep='first')
 		self._obj = self._obj[neworder]
 		print(' '.join(['ID_1'] + self._obj.columns.to_list()))
 		print(' '.join(['0'] + self.coltype.to_list()))
-		self._obj.to_csv(sys.stdout, sep=' ', na_rep='NA', header=False)
+		super().write(dest, *args, sep=' ', na_rep='NA', header=False, **kwargs)
+#		self._obj.to_csv(sys.stdout, sep=' ', na_rep='NA', header=False)
 
 # --%%	END: Define CLASS Snptest  %%--
 #
@@ -283,7 +296,7 @@ class Psam(Phenotype):
 	https://www.cog-genomics.org/plink/2.0/formats#psam
 	"""
 
-	MAGIC_COLS = {"IID":     Phenotype.MAGIC_COLS["IID"], # Not really magic; the ID column is always the first column, regardless of name
+	MAGIC_COLS = {"IID":     Phenotype.MAGIC_COLS["IID"], # In Actuality, the ID 'column' isn't a column, it's the index.
 	              "FID":     Phenotype.MAGIC_COLS["FID"],
 	              "MAT":     Phenotype.MAGIC_COLS["MAT"],
 	              "PAT":     Phenotype.MAGIC_COLS["PAT"],
@@ -292,6 +305,7 @@ class Psam(Phenotype):
 
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
+		self._obj['FID'] = self._obj.index
 		self._obj['IID'] = self._obj.index
 		self._obj['PAT'] = self._obj.get('PAT', 0)
 		self._obj['MAT'] = self._obj.get('MAT', 0)
@@ -302,11 +316,13 @@ class Psam(Phenotype):
 		obj = super().combine_first(other, *args, **kwargs)
 		return obj
 
-	def write(self):
+	def write(self, *args, dest=sys.stdout, header=True, **kwargs):
 		neworder = pd.Index(["FID","IID","PAT","MAT","SEX"]).append(self._obj.columns).drop_duplicates(keep='first')
 		self._obj = self._obj[neworder]
-		print("#", end="")
-		self._obj.to_csv(sys.stdout, sep='\t', na_rep='NA', index=False)
+		self._validate(self._obj, warn=True)
+		if header:
+			print("#", end="")
+		super().write(dest, *args, sep='\t', na_rep='NA', header=header, index=False, **kwargs)
 
 # --%%	END: Define CLASS Psam (Plink2)  %%--
 #
