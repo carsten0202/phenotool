@@ -1,6 +1,7 @@
-#!/home/fls530/anaconda3/bin/python
 
-# Module to hold the Pheno class and its associated functions
+#
+# ---%%%  pkpheno.py: Handling Phenotype information  %%%---
+#
 
 ##################################################
 #
@@ -13,6 +14,7 @@ import sys
 import warnings
 
 assert sys.version_info >= (3, 8), f"{sys.argv[0]} requires Python 3.8.0 or newer. Your version appears to be: '{sys.version}'."
+logger = logging.getLogger(__name__)
 
 import pkcsv as csv
 
@@ -30,7 +32,7 @@ import pkcsv as csv
 #@pd.api.extensions.register_dataframe_accessor("pheno")
 class Phenotype:
 	"""A handy-dandy object for storing phenotypes. Will be cool to also import into other scripts when working with phenotypes"""
-
+	__name__ = "Phenotype"
 	MAGIC_COLS = {"IID":     ["ID","id","ID_1","Id_1","id_1","IID","Iid","iid","ParticID","Particid","particid"],
 	              "FID":     ["FID","Fid","fid","ID_2","Id_2","id_2"],
 	              "MAT":     ["MAT"],
@@ -44,6 +46,7 @@ class Phenotype:
 
 	def __init__(self, *args, columns=[], samples=[], **kwargs):
 		self._obj = pd.DataFrame(*args, **kwargs)
+		logger.info(f"{self.__name__}: Parsing file with columns: {self._obj.columns.values}")
 		self._obj = self._set_magic_kcol()
 		self._obj = self._obj.set_index(self.mkey_id)
 		self = self.set_columns(columns=columns)
@@ -74,18 +77,20 @@ class Phenotype:
 		# Need to recognize R's one-header-name-short-stupid format
 		# Option to set the ID and a warning if it's not recognized
 		#	We actually need ways to specify custom names for all magic cols...
-		assert not self._obj.index.duplicated().any(), f"One or more input files had duplicated primary identifiers. The primary identifiers must be unique within each input file."
+		dup = self._obj.index.duplicated()
+		assert not dup.any(), f"One or more input files had duplicated primary identifiers ({self._obj.index[dup].unique().to_list()}). The primary identifiers must be unique within each input file."
 		if warn:
 			# Check for suspect values like 'NA' (Check for Inf?)
-			for anyna,allna in [(s[1].isna().any(), s[1].isna().all()) for s in self._obj.iterrows()]:
+			for allna in [s[1].isna().all() for s in self._obj.iterrows()]:
 				if allna:
+					# SHIT! These guy don't trgger properly if we have columns with auto-default values, like '0'...
 					warnings.warn("Dataset contains samples without any associated data; one or more rows will have only missing values.")
 					# We can add logging.warning('message') here for additional details.
-				elif anyna:
-					warnings.warn("The dataset contains one or more missing values.")
-			for allna in [s[1].isna().all() for s in self._obj.iteritems()]:
+			for anyna, allna in [(s[1].isna().any(), s[1].isna().all()) for s in self._obj.iteritems()]:
 				if allna:
 					warnings.warn("Dataset contains phenotypes without any associated data; one or more columns will have only missing values.")
+				elif anyna:
+					logger.debug("The dataset contains one or more missing values.")
 
 	def is_sample_data(self):
 		"""0 (for the first identifier column)
@@ -180,6 +185,7 @@ class Snptest(Phenotype):
 	https://www.well.ox.ac.uk/~gav/qctool_v2/documentation/sample_file_formats.html
 	https://jmarchini.org/file-formats/
 	"""
+	__name__ = "Snptest"
 	MAGIC_COLS = {'ID_1'    : Phenotype.MAGIC_COLS['IID'],
 	              'ID_2'    : Phenotype.MAGIC_COLS['FID'],
 	              'missing' : Phenotype.MAGIC_COLS['MISSING'],
@@ -278,6 +284,7 @@ class Psam(Phenotype):
 	Documentation can be found here:
 	https://www.cog-genomics.org/plink/2.0/formats#psam
 	"""
+	__name__ = "Psam"
 	MAGIC_COLS = {
 		"FID":     Phenotype.MAGIC_COLS["FID"],
 		"IID":     Phenotype.MAGIC_COLS["IID"], # In Actuality, the ID 'column' isn't a column, it's the index.
@@ -327,6 +334,7 @@ class RVtest(Psam):
 	Documentation can be found here:
 	http://zhanxw.github.io/rvtests/#phenotype-file
 	"""
+	__name__ = "RVtest"
 	MAGIC_COLS = {
 		"fid":     Phenotype.MAGIC_COLS["FID"],
 		"iid":     Phenotype.MAGIC_COLS["IID"], # In Actuality, the ID 'column' isn't a column, it's the index.
@@ -367,6 +375,7 @@ class PEP(Phenotype):
 	"""Portable Encapsulated Projects
 
 	"""
+	__name__ = "PEP"
 
 	def __init__(self, *args, **kwargs):
 		""""""

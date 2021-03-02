@@ -1,14 +1,6 @@
-#!/home/fls530/anaconda3/bin/python
+#!/home/fls530/miniconda3/envs/myscripts/bin/python
 
-# An Idea
-
-Version = """0.7 (Development Version)
-"""
-
-# A handy tool to fix and re-afirm sample files for GWAS
-#	should be able to output .sam and .psam formats (the latter being so much easier...)
-
-# We should define a phenotype class
+# phenotool.py
 
 # Notes and TODOs:
 # Add option to control what is treated as a missing value
@@ -18,8 +10,12 @@ Version = """0.7 (Development Version)
 #
 # --%%  RUN: Perform Basic Setup  %%--
 
+Version = """0.8 (Development Version)
+"""
+
 import click
 from collections import namedtuple
+import logging
 import sys
 
 import pkcsv as csv
@@ -41,7 +37,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """)
 
-OPTION = namedtuple('Options', ['columns','covariates','fam','files','phenotypes','samples'])(
+OPTION = namedtuple('Options', ['columns','covariates','fam','files','log','phenotypes','samples'])(
 columns = """
 Comma separated list of columns to output in addition to mandatory columns. Default is to output all columns.
 """,
@@ -55,6 +51,9 @@ include in the sixth fam file column.
 files = """
 Input File(s). %(prog)s accepts one or more input files including '-' symbolizing stdin. The precise format of each
 input file will be autodetected, but it should be some form of delimited text data file like 'csv' or tab-delimited.
+""",
+log = """
+Control logging. Valid levels: 'debug', 'info', 'warning', 'error', 'critical'.
 """,
 phenotypes = """
 Comma separated list of columns with phenotypes.
@@ -84,13 +83,19 @@ class StdCommand(click.Command):
 
 @click.group()
 @click.version_option(version=Version)
-def main():
+@click.option('--log', default="warning", help=OPTION.log, show_default=True)
+def main(log):
 	"""Organize sample information for GWAS analyses.
 
 Read column-based sample information and perform simple sorting, filtering and transformations on phenotype values.
 Outputs sample information in formats appropriate for popular GWAS tools including Snptest, RVtest and Plink. 
 """
-	pass
+	try:
+		log_num = getattr(logging, log.upper())
+	except AttributeError:
+		raise ValueError(f"Invalid log level: '{log}'")
+	logging.basicConfig(level=log_num)
+
 
 #@main.command(cls=StdCommand, no_args_is_help=True)
 #@click.option('-c', '--columns', type=CSV(), default="", help="Comma separated list of columns to extract.")
@@ -126,7 +131,8 @@ http://pep.databio.org/en/latest/
 @main.command(cls=StdCommand, no_args_is_help=True)
 @click.option('-c', '--columns', type=CSV(), default="", help=OPTION.columns)
 @click.option('-f', '--fam', type=str, metavar='COLUMN', default=None, help=OPTION.fam)
-def plink(files, columns, fam):
+@click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTION.samples)
+def plink(files, columns, fam, samples):
 	"""Output phenotypes in psam/fam format for use with Plink.
 
 A properly formatted psam file has in addition to the phenotype columns one or more of the following recognizable
@@ -155,16 +161,17 @@ https://www.cog-genomics.org/plink/1.9/formats#fam
 	assert sum([1 for x in [columns,fam] if x]) <= 1, "'--columns' and '--fam' are mutually exclusive; please only specify one of them."
 	if fam:
 		columns = [fam]
-	pheno = Pheno.Psam(csv.DictReader(files[0]), columns=columns)
+	pheno = Pheno.Psam(csv.DictReader(files[0]), columns=columns, samples=samples)
 	for fileobj in files[1:]:
-		pheno_new = Pheno.Psam(csv.DictReader(fileobj), columns=columns)
+		pheno_new = Pheno.Psam(csv.DictReader(fileobj), columns=columns, samples=samples)
 		pheno = pheno.combine_first(pheno_new)
 	pheno.write(header = False if fam else True)
 
 
 @main.command(cls=StdCommand, no_args_is_help=True)
 @click.option('-c', '--columns', type=CSV(), default="", help=OPTION.columns)
-def rvtest(files, columns):
+@click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTION.samples)
+def rvtest(files, columns, samples):
 	"""UNTESTED; Output phenotypes in psam-like format for RVtest.
 
 RVtest phenotype files are very similar to the psam format. They are essentially plink2 files with a few caveats. The
@@ -175,9 +182,10 @@ For more on RVtest phenotype files, please refer to:
 http://zhanxw.github.io/rvtests/#phenotype-file
 """
 	import pkpheno as Pheno
-	pheno = Pheno.RVtest(csv.DictReader(files[0]), columns=columns)
+	import pandas as pd
+	pheno = Pheno.RVtest(csv.DictReader(files[0]), columns=columns, samples=samples)
 	for fileobj in files[1:]:
-		pheno_new = Pheno.RVtest(csv.DictReader(fileobj), columns=columns)
+		pheno_new = Pheno.RVtest(csv.DictReader(fileobj), columns=columns, samples=samples)
 		pheno = pheno.combine_first(pheno_new)
 	pheno.write()
 
