@@ -16,7 +16,11 @@ Version = """0.8 (Development Version)
 import click
 from collections import namedtuple
 import logging
+import pathlib
 import sys
+
+ScriptPath = str(pathlib.Path(__file__).resolve().parent.absolute())
+sys.path.append(ScriptPath + '/src')
 
 import pkcsv as csv
 from pkclick import CSV, SampleList
@@ -24,7 +28,7 @@ from pkclick import CSV, SampleList
 
 EPILOG = namedtuple('Epilog', ['legal'])(
 legal = """
-Written by Carsten Friis Rundsten <fls530@ku.dk>
+Written by Carsten Friis Rundsten <carsten.rundsten@sund.ku.dk>
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -240,6 +244,11 @@ def test(files, columns):
 #
 ##################################################
 
+
+
+from ukbiobank import ukbiobank
+
+main.add_command(ukbiobank.ukbiobank)
 
 
 
