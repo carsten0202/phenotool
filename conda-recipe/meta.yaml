@@ -1,0 +1,20 @@
+package:
+  name: phenotool
+  version: "0.1"
+
+source:
+  git_url: &github https://github.com/carsten0202/phenotool
+  path: ..
+
+requirements:
+  build:
+    - python
+    - setuptools
+
+  run:
+    - python
+    - pandas
+
+about:
+  home: *github
+
