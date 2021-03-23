@@ -10,8 +10,7 @@
 #
 # --%%  RUN: Perform Basic Setup  %%--
 
-Version = """0.8 (Development Version)
-"""
+__version__ = """0.8 (Development Version)"""
 
 import click
 from collections import namedtuple
@@ -86,7 +85,7 @@ class StdCommand(click.Command):
 		self.epilog = EPILOG.legal
 
 @click.group()
-@click.version_option(version=Version)
+@click.version_option(version=__version__)
 @click.option('--log', default="warning", help=OPTION.log, show_default=True)
 def main(log):
 	"""Organize sample information for GWAS analyses.

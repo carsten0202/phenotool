@@ -6,15 +6,23 @@ source:
   git_url: &github https://github.com/carsten0202/phenotool
   path: ..
 
+build:
+  number: 0
+  entry_points:
+    - phenotool = phenotool:main
+
 requirements:
   build:
     - python
-    - setuptools
+    - setuptools >=49.0
 
   run:
-    - python
-    - pandas
+    - python >=3.8
+    - click >=7.1
+    - numpy >=1.16
+    - pandas >=1.2
 
 about:
   home: *github
-
+  license_file: LICENSE
+  summary: Write summary here...
