@@ -19,7 +19,8 @@ import pathlib
 import sys
 
 ScriptPath = str(pathlib.Path(__file__).resolve().parent.absolute())
-sys.path.append(ScriptPath + '/src')
+sys.path.append(ScriptPath + '/..')
+sys.path.append(ScriptPath + '/../src')
 
 import pkcsv as csv
 from pkclick import CSV, SampleList

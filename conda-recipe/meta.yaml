@@ -1,22 +1,21 @@
 package:
   name: phenotool
-  version: "0.1"
+  version: "0.8"
 
 source:
   git_url: &github https://github.com/carsten0202/phenotool
   path: ..
 
 build:
-  number: 0
   entry_points:
     - phenotool = phenotool:main
 
 requirements:
   build:
-    - python
+    - python >=3.8
     - setuptools >=49.0
 
-  run:
+  host:
     - python >=3.8
     - click >=7.1
     - numpy >=1.16
