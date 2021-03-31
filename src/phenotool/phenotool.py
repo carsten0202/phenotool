@@ -22,7 +22,7 @@ ScriptPath = str(pathlib.Path(__file__).resolve().parent.absolute())
 sys.path = [ScriptPath + '/..'] + sys.path
 sys.path = [ScriptPath + '/../src'] + sys.path
 
-import pkcsv as csv
+import tmp.pkcsv as csv
 from pkclick import CSV, SampleList
 
 
