@@ -375,11 +375,18 @@ class PEP(Phenotype):
 
 	"""
 	__name__ = "PEP"
+	MAGIC_COLS = {
+		"sample_name":     Phenotype.MAGIC_COLS["IID"] + ["sample_name"], # In Actuality, the ID 'column' isn't a column, it's the index.
+	}
+	mkey_id    = "sample_name" # Also the index, so must be unique.
 
 	def __init__(self, *args, **kwargs):
 		""""""
 		super().__init__(*args, **kwargs)
 		PEP._validate(self)
+
+	def write(self, *args, quoting=csv.QUOTE_ALL, **kwargs):
+		super().write(*args, quoting=quoting, **kwargs)
 
 # --%% END: Defint CLASS PEP for Portable Encapsulated Projects  %%--
 #

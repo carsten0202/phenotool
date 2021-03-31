@@ -19,8 +19,8 @@ import pathlib
 import sys
 
 ScriptPath = str(pathlib.Path(__file__).resolve().parent.absolute())
-sys.path.append(ScriptPath + '/..')
-sys.path.append(ScriptPath + '/../src')
+sys.path = [ScriptPath + '/..'] + sys.path
+sys.path = [ScriptPath + '/../src'] + sys.path
 
 import pkcsv as csv
 from pkclick import CSV, SampleList
@@ -111,10 +111,13 @@ Outputs sample information in formats appropriate for popular GWAS tools includi
 #		pheno = pheno.combine_first(pheno_new)
 #	pheno.write()
 
-@main.command(cls=StdCommand, no_args_is_help=True, hidden=True)
-@click.option('-c', '--columns', type=CSV(), default="", help=OPTION.columns)
-def pepcsv(files, columns):
-	"""NOT IMPLEMENTED YET. Output CSV file suitable for PEP.
+from pkpep import pkpep
+
+main.add_command(pkpep.main, name="pep")
+#@main.command(cls=StdCommand, no_args_is_help=True, hidden=True)
+#@click.option('-c', '--columns', type=CSV(), default="", help=OPTION.columns)
+#def pep(files, columns):
+"""NOT IMPLEMENTED YET. Output CSV file suitable for PEP.
 
 The Portable Encapsulated Projects (PEP for short) community effort to facilitate the portability, reusability and
 durability of sample metadata.
@@ -123,13 +126,13 @@ durability of sample metadata.
 For more on the PEP community effort, please refer to:
 http://pep.databio.org/en/latest/
 """
-	import pkpheno as Pheno
-	assert True, "."
-	pheno = Pheno.PEP(csv.DictReader(files[0]), columns=columns)
-	for fileobj in files[1:]:
-		pheno_new = Pheno.PEP(csv.DictReader(fileobj), columns=columns)
-	pheno = pheno.combine_first(pheno_new)
-	pheno.write()
+#	import pkpheno as Pheno
+#	assert True, "."
+#	pheno = Pheno.PEP(csv.DictReader(files[0]), columns=columns)
+#	for fileobj in files[1:]:
+#		pheno_new = Pheno.PEP(csv.DictReader(fileobj), columns=columns)
+#	pheno = pheno.combine_first(pheno_new)
+#	pheno.write()
 
 
 @main.command(cls=StdCommand, no_args_is_help=True)

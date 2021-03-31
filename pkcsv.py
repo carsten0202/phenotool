@@ -5,7 +5,7 @@
 
 # Import functions from csv that we want to make available upstairs
 
-from csv import DictWriter, writer
+from csv import DictWriter, writer, QUOTE_ALL
 import csv
 import itertools
 import logging
