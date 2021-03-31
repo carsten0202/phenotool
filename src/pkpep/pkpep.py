@@ -3,7 +3,7 @@
 import click
 
 from pkclick import CSV, SampleList
-import pkcsv as csv
+import pklib.pkcsv as csv
 import pheno_shared
 
 @click.command(no_args_is_help=True, hidden=True)

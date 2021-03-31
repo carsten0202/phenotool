@@ -10,7 +10,7 @@
 #
 # --%%  RUN: Perform Basic Setup  %%--
 
-__version__ = """0.8 (Development Version)"""
+__version__ = """0.9.1 (Development Version)"""
 
 import click
 from collections import namedtuple
@@ -22,7 +22,7 @@ ScriptPath = str(pathlib.Path(__file__).resolve().parent.absolute())
 sys.path = [ScriptPath + '/..'] + sys.path
 sys.path = [ScriptPath + '/../src'] + sys.path
 
-import tmp.pkcsv as csv
+import pklib.pkcsv as csv
 from pkclick import CSV, SampleList
 
 
