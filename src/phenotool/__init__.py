@@ -1,3 +1,0 @@
-
-from .phenotool import main
-

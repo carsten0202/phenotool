@@ -2,13 +2,13 @@
 
 import click
 
-from pkclick import CSV, SampleList
+from pklib.pkclick import CSV, SampleList
 import pklib.pkcsv as csv
-import pheno_shared
+import phenotool.options as OPTIONS
 
 @click.command(no_args_is_help=True, hidden=True)
 @click.argument('files', nargs=-1, type=click.File())
-@click.option('-c', '--columns', type=CSV(), default="", help=pheno_shared.columns)
+@click.option('-c', '--columns', type=CSV(), default="", help=OPTIONS.columns)
 def main(files, columns):
 	"""NOT IMPLEMENTED YET. Output CSV file suitable for PEP.
 

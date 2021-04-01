@@ -20,10 +20,12 @@ import sys
 
 ScriptPath = str(pathlib.Path(__file__).resolve().parent.absolute())
 sys.path = [ScriptPath + '/..'] + sys.path
-sys.path = [ScriptPath + '/../src'] + sys.path
+
+from phenotool.stdcommand import StdCommand
+import phenotool.options as OPTIONS
 
 import pklib.pkcsv as csv
-from pkclick import CSV, SampleList
+from pklib.pkclick import CSV, SampleList
 
 
 EPILOG = namedtuple('Epilog', ['legal'])(
@@ -41,33 +43,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """)
 
-OPTION = namedtuple('Options', ['columns','covariates','fam','files','log','phenotypes','samples'])(
-columns = """
-Comma separated list of columns to output in addition to mandatory columns. Default is to output all columns.
-""",
-covariates = """
-Comma separated list of columns with covariates. Print only these columns (plus any mandatory columns)
-""",
-fam = """
-Output fam format for plink1.9. If specified, takes one mandatory argument stating the column name of the phenotype to
-include in the sixth fam file column.
-""",
-files = """
-Input File(s). %(prog)s accepts one or more input files including '-' symbolizing stdin. The precise format of each
-input file will be autodetected, but it should be some form of delimited text data file like 'csv' or tab-delimited.
-""",
-log = """
-Control logging. Valid levels: 'debug', 'info', 'warning', 'error', 'critical'.
-""",
-phenotypes = """
-Comma separated list of columns with phenotypes.
-""",
-samples="""
-File with samples to include in the output. Samples will be outputted in the exact same order as in the sample file
-including outputting samples with missing values if no phenotype information was found. The sample file can be a plain text file with sample names or a VCF file with sample genotypes.
-""",
-)
-
 # --%%  END: Perform Basic Setup  %%--
 #
 ##################################################
@@ -79,15 +54,15 @@ including outputting samples with missing values if no phenotype information was
 #
 # --%%  RUN: Commands  %%--
 
-class StdCommand(click.Command):
-	def __init__(self, *args, **kwargs):
-		super().__init__(*args, **kwargs)
-		self.params.insert(0, click.Argument(['files'], nargs=-1, type=click.File()))
-		self.epilog = EPILOG.legal
+#class StdCommand(click.Command):
+#	def __init__(self, *args, **kwargs):
+#		super().__init__(*args, **kwargs)
+#		self.params.insert(0, click.Argument(['files'], nargs=-1, type=click.File()))
+#		self.epilog = EPILOG.legal
 
 @click.group()
 @click.version_option(version=__version__)
-@click.option('--log', default="warning", help=OPTION.log, show_default=True)
+@click.option('--log', default="warning", help=OPTIONS.log, show_default=True)
 def main(log):
 	"""Organize sample information for GWAS analyses.
 
@@ -126,19 +101,12 @@ durability of sample metadata.
 For more on the PEP community effort, please refer to:
 http://pep.databio.org/en/latest/
 """
-#	import pkpheno as Pheno
-#	assert True, "."
-#	pheno = Pheno.PEP(csv.DictReader(files[0]), columns=columns)
-#	for fileobj in files[1:]:
-#		pheno_new = Pheno.PEP(csv.DictReader(fileobj), columns=columns)
-#	pheno = pheno.combine_first(pheno_new)
-#	pheno.write()
 
 
 @main.command(cls=StdCommand, no_args_is_help=True)
-@click.option('-c', '--columns', type=CSV(), default="", help=OPTION.columns)
-@click.option('-f', '--fam', type=str, metavar='COLUMN', default=None, help=OPTION.fam)
-@click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTION.samples)
+@click.option('-c', '--columns', type=CSV(), default="", help=OPTIONS.columns)
+@click.option('-f', '--fam', type=str, metavar='COLUMN', default=None, help=OPTIONS.fam)
+@click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
 def plink(files, columns, fam, samples):
 	"""Output phenotypes in psam/fam format for use with Plink.
 
@@ -176,8 +144,8 @@ https://www.cog-genomics.org/plink/1.9/formats#fam
 
 
 @main.command(cls=StdCommand, no_args_is_help=True)
-@click.option('-c', '--columns', type=CSV(), default="", help=OPTION.columns)
-@click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTION.samples)
+@click.option('-c', '--columns', type=CSV(), default="", help=OPTIONS.columns)
+@click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
 def rvtest(files, columns, samples):
 	"""UNTESTED; Output phenotypes in psam-like format for RVtest.
 
@@ -200,7 +168,7 @@ http://zhanxw.github.io/rvtests/#phenotype-file
 @main.command(cls=StdCommand, no_args_is_help=True)
 @click.option('-c', '--covariates', type=CSV(), default="", help="Comma separated list of columns with covariates. Print only these columns (plus any mandatory columns)")
 @click.option('-p', '--phenotypes', type=CSV(), default="", help="Comma separated list of columns with phenotypes.")
-@click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTION.samples)
+@click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
 def snptest(files, covariates, phenotypes, samples):
 	"""Output phenotypes in sample format for use with Snptest.
 

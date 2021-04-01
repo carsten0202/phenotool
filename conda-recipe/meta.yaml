@@ -1,6 +1,6 @@
 package:
   name: phenotool
-  version: "0.8"
+  version: "0.9.1"
 
 source:
   git_url: &github https://github.com/carsten0202/phenotool

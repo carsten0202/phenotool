@@ -1,6 +1,3 @@
-[submodule "lib"]
-	path = lib
-	url = git://github.com/carsten0202/pkmodules
 [submodule "src/pklib"]
 	path = src/pklib
 	url = git@github.com:carsten0202/pkmodules
