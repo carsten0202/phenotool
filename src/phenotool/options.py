@@ -1,6 +1,6 @@
 
 #
-# -%  Define shared help strings  %-
+# --%%  Define shared help strings  %%--
 
 columns = """
 Comma separated list of columns to output in addition to mandatory columns. Default is to output all columns.
@@ -28,9 +28,26 @@ phenotypes = """
 Comma separated list of columns with phenotypes.
 """
 
-samples="""
+samples = """
 File with samples to include in the output. Samples will be outputted in the exact same order as in the sample file
 including outputting samples with missing values if no phenotype information was found. The sample file can be a plain text file with sample names or a VCF file with sample genotypes.
 """
 
 
+#
+# -%  For the Prevalence/Incidence Algorithms  %-
+
+agediag = """Subjects age at the time disease was reported.
+"""
+
+diagnosed = """Empirical evidence eg. provided by Doctor.
+"""
+
+ethnicity = """Used to set typical age of onset for type 2 diabetes.
+"""
+
+reported = """Circumstantial evidence eg. based on questionnaire, interview, etc.
+"""
+
+treatments = """Evidence of relevant treatments; eg. Insulin for Diabetes.
+"""

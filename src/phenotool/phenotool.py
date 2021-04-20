@@ -10,7 +10,7 @@
 #
 # --%%  RUN: Perform Basic Setup  %%--
 
-__version__ = """0.9.1 (Development Version)"""
+__version__ = """0.10.1 (Development Version)"""
 
 import click
 from collections import namedtuple
@@ -136,9 +136,9 @@ https://www.cog-genomics.org/plink/1.9/formats#fam
 	assert sum([1 for x in [columns,fam] if x]) <= 1, "'--columns' and '--fam' are mutually exclusive; please only specify one of them."
 	if fam:
 		columns = [fam]
-	pheno = Pheno.Psam(csv.DictReader(files[0]), columns=columns, samples=samples)
+	pheno = Pheno.Psam(csv.DictReader(files[0]), phenovars=columns, samples=samples)
 	for fileobj in files[1:]:
-		pheno_new = Pheno.Psam(csv.DictReader(fileobj), columns=columns, samples=samples)
+		pheno_new = Pheno.Psam(csv.DictReader(fileobj), phenovars=columns, samples=samples)
 		pheno = pheno.combine_first(pheno_new)
 	pheno.write(header = False if fam else True)
 
@@ -158,9 +158,9 @@ http://zhanxw.github.io/rvtests/#phenotype-file
 """
 	import pkpheno as Pheno
 	import pandas as pd
-	pheno = Pheno.RVtest(csv.DictReader(files[0]), columns=columns, samples=samples)
+	pheno = Pheno.RVtest(csv.DictReader(files[0]), phenovars=columns, samples=samples)
 	for fileobj in files[1:]:
-		pheno_new = Pheno.RVtest(csv.DictReader(fileobj), columns=columns, samples=samples)
+		pheno_new = Pheno.RVtest(csv.DictReader(fileobj), phenovars=columns, samples=samples)
 		pheno = pheno.combine_first(pheno_new)
 	pheno.write()
 
@@ -217,7 +217,7 @@ def test(files, columns):
 
 
 
-from ukbiobank import ukbiobank
+import ukbiobank.cli as ukbiobank
 
 main.add_command(ukbiobank.ukbiobank)
 

@@ -7,7 +7,9 @@
 #
 # --%%	RUN: Perform Basic Setup  %%--
 
+import copy
 import logging
+from numbers import Number
 import numpy as np
 import pandas as pd
 import sys
@@ -16,7 +18,7 @@ import warnings
 assert sys.version_info >= (3, 8), f"{sys.argv[0]} requires Python 3.8.0 or newer. Your version appears to be: '{sys.version}'."
 logger = logging.getLogger(__name__)
 
-import pkcsv as csv
+import pklib.pkcsv as csv
 
 # --%%	END: Perform Basic Setup  %%--
 #
@@ -43,12 +45,12 @@ class Phenotype:
 	mkey_id    = "IID" # Also the index, so must be unique.
 	mkey_sex   = "SEX"
 
-	def __init__(self, *args, columns=[], samples=[], **kwargs):
+	def __init__(self, *args, phenovars=[], samples=[], **kwargs):
 		self._obj = pd.DataFrame(*args, **kwargs)
-		logger.info(f"{self.__name__}: Parsing file with columns: {self._obj.columns.values}")
+		logger.info(f"{self.__name__}: Parsing file with columns: {self._obj.columns.to_list()}")
 		self._obj = self._set_magic_kcol()
 		self._obj = self._obj.set_index(self.mkey_id)
-		self = self.set_columns(columns=columns)
+		self = self.set_columns(columns=phenovars)
 		self = self.set_samples(samples=samples)
 		if self.is_sample_data():
 			self._sampletypes = self._obj.index[0]
@@ -60,6 +62,17 @@ class Phenotype:
 		for col in self._obj.columns:
 			self._obj[col] = pd.to_numeric(self._obj[col], errors='ignore')
 		self._obj = self._obj.convert_dtypes()
+		logger.debug(f"Columns after __init__: {self._obj.columns.to_list()}")
+
+	def __getitem__(self, key):
+		"""Redirects index operations to the _obj attribute."""
+		out = copy.deepcopy(self)
+		out._obj = out._obj[key]
+		return out
+
+	def __setitem__(self, key, value):
+		"""Redirects index-based assignment operations to the _obj attribute."""
+		self._obj[key] = value
 
 	def _set_magic_kcol(self):
 		for k, v in self.MAGIC_COLS.items():
@@ -91,24 +104,6 @@ class Phenotype:
 				elif anyna:
 					logger.debug("The dataset contains one or more missing values.")
 
-	def is_sample_data(self):
-		"""0 (for the first identifier column)
-		D (for a column containing discrete values, e.g. a set of strings)
-		P or C - for columns containing continuous value - each value must be numerical, or a missing value.
-		B - for a column containing a binary trait. The values in this column must be '0', '1', 'control', or 'case'.
-		"""
-		list_ = [0,"0","B","C","D","P"]
-		return all(self._obj.iloc[0].isin(list_))
-
-	def combine_first(self, other):
-		"""Return: Combined DataFrame from self and other."""
-		if isinstance(other, Phenotype):
-			self._obj = self._obj.combine_first(other=other._obj)
-		else:
-			self._obj = self._obj.combine_first(other=other)
-		self._obj = self._obj.fillna(np.NaN)
-		return self
-
 	@property
 	def colnames(self):
 		"""Return: All colnames in _obj as list"""
@@ -124,6 +119,24 @@ class Phenotype:
 		"""Return: All colnames in _obj which are not magical."""
 		return [col for col in self._obj.columns if col not in self.colnames_magic]
 
+	@property
+	def columns(self):
+		"""Returns the columns of _obj."""
+		return self._obj.columns
+
+	@property
+	def index(self):
+		"""Return the index of _obj."""
+		return self._obj.index
+
+	@property
+	def sex(self):
+		"""Returns the SEX in a systematic way (male/female) for querying."""
+		out = pd.Series(np.zeros(self._obj.index.size) + np.nan, name=self.mkey_sex, index=self._obj.index)
+		out[self[self.mkey_sex].pkisin(['1', 'M'])] = "male"
+		out[self[self.mkey_sex].pkisin(['2', 'F'])] = "female"
+		return out
+
 	def columns_rankINT(self, columns=[]):
 		"""Return: Self after Rank-based inverse normally transformation on cols given by 'columns'. Default: All normal columns"""
 		columns = self.colnames_translate(columns) if columns else self.colnames_normal
@@ -138,6 +151,66 @@ class Phenotype:
 			mcol = [k for k in self.colnames_magic if col in self.MAGIC_COLS[k]]
 			outcols.extend(mcol if mcol else [col])
 		return outcols
+
+	def combine_first(self, other):
+		"""Return: Combined DataFrame from self and other."""
+		if isinstance(other, Phenotype):
+			self._obj = self._obj.combine_first(other=other._obj)
+		else:
+			self._obj = self._obj.combine_first(other=other)
+		self._obj = self._obj.fillna(np.NaN)
+		return self
+
+	def drop(self, *args, **kwargs):
+		self._obj = self._obj.drop(*args, **kwargs)
+		return self
+
+	def field2cols(self, fields):
+		"""Find all column names containing 'field' using regex."""
+		out = pd.Series()
+		cols = pd.Series(self._obj.columns)
+		if not isinstance(fields, list):
+			fields = [fields]
+		for field in fields:
+			out = out.append(cols[cols.str.contains(field, regex=True)])
+		logger.debug(f"field2cols: Fields={fields}; Found cols={out.to_list()}.")
+		return out
+
+	def findinfield(self, fields, values):
+		"""Find value in indicated fields.
+
+		Return:
+		    A pd.Series with True/False for each row describing if row contained the value.
+		"""
+		logger.debug(f"findinfield: Scanning fields='{fields}' for values={values}.")
+		out = pd.Series(pd.NA, index=self.index, dtype=pd.BooleanDtype())
+		cols = self.field2cols(fields)
+		if self.columns.isin(cols).any():
+			out[self.index] = self[cols].pkisin(values).any(axis='columns')
+			out[self._obj[cols].isna().all(axis='columns')] = pd.NA
+		logger.debug(f"findinfield: Found = {out.to_dict()}.")
+		return out
+
+	def is_sample_data(self):
+		"""0 (for the first identifier column)
+		D (for a column containing discrete values, e.g. a set of strings)
+		P or C - for columns containing continuous value - each value must be numerical, or a missing value.
+		B - for a column containing a binary trait. The values in this column must be '0', '1', 'control', or 'case'.
+		"""
+		list_ = [0,"0","B","C","D","P"]
+		return all(self._obj.iloc[0].isin(list_))
+
+	def pkisin(self, values):
+		"""Convienience function to check for 'values' using both numeric and string in df.isin()."""
+		if isinstance(values, str):
+			values = [values]
+		out = values
+		for value in values:
+			if isinstance(value, str) and value.isnumeric():
+				out.append(float(value))
+			elif isinstance(value, Number):
+				out.append(str(value))
+		return self._obj.isin(out)
 
 	def set_columns(self, columns=[]):
 		"""Return: All magic columns in input + specified columns in that order;
@@ -194,9 +267,9 @@ class Snptest(Phenotype):
 	mkey_altid = "ID_2"
 	mkey_sex   = "sex"
 
-	def __init__(self, *args, columns=[], covariates=[], phenotypes=[], **kwargs):
+	def __init__(self, *args, phenovars=[], covariates=[], phenotypes=[], **kwargs):
 		""""""
-		super().__init__(*args, columns=columns+covariates+phenotypes, **kwargs)
+		super().__init__(*args, phenovars = phenovars + covariates + phenotypes, **kwargs)
 		self._obj[self.mkey_altid] = self._obj.index
 		self._obj['missing'] = self._obj.get('missing', pd.Series(pd.NA * self._obj.index.size, index=self._obj.index))
 		self._obj[self.mkey_sex] = pd.Categorical(self._obj.get(self.mkey_sex, [""]*len(self._obj.index)))
