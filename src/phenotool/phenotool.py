@@ -10,7 +10,7 @@
 #
 # --%%  RUN: Perform Basic Setup  %%--
 
-__version__ = """0.10.1 (Development Version)"""
+__version__ = """0.10.2 (Development Version)"""
 
 import click
 from collections import namedtuple

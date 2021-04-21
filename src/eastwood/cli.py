@@ -47,7 +47,7 @@ def prevalence(fileobj, agediag, diagnosed, ethnicity, reported, treatments):
 	pheno = UKBioBank(csv.DictReader(fileobj), datafields=datafields)
 	eastwood = Eastwood(pheno, agediag=agediag, high=diagnosed, ethnicity=ethnicity, moderate=reported, treatments=treatments)
 	pheno['Prevalence'] = eastwood.prevalence
-	pheno[['SEX','Prevalence']].write()
+	pheno[['Prevalence']].write()
 
 
 
