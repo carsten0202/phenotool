@@ -7,6 +7,8 @@
 #       Maybe a function to dig up most recent annotation for a given application
 #               ie you'd supply an application nunmber rather than a file?
 
+__version__ = """0.2.0"""
+
 import click
 import logging
 import sys
@@ -14,7 +16,8 @@ import sys
 assert sys.version_info >= (3, 8), f"{sys.argv[0]} requires Python 3.8.0 or newer. Your version appears to be: '{sys.version}'."
 logger = logging.getLogger(__name__)
 
-import eastwood.cli as eastwood
+import eastwood.cli as Eastwood
+import phenotool.cli as Phenotool
 import phenotool.options as OPTIONS
 import pklib.pkcsv as csv
 from pklib.pkclick import CSV, gzFile, SampleList
@@ -36,11 +39,9 @@ def ukbiobank(ctx, datafields, samples, value):
 
 	# ensure that ctx.obj exists and is a dict
 	ctx.ensure_object(dict)
-	ctx.obj['datafields'] = datafields
+	ctx.obj['phenovars'] = datafields
 	ctx.obj['samples'] = samples
 	ctx.obj['constructor'] = UKBioBank
-	ctx.obj['DEBUG'] = True
-
 
 
 @ukbiobank.resultcallback()
@@ -54,30 +55,15 @@ def process_pipeline(ctx, processors, datafields, samples, value):
 
 
 #
-# -%  Eastwood Prevalence Command (UKBioBank Version)  %-
+# -%  Add Command on External Commands (Chained Versions)  %-
 
-ukbiobank.add_command(eastwood.prevalence_ukb)
+# CSV output command (Chained version)
+ukbiobank.add_command(Phenotool.csv_chain)
 
+# Plink output command (Chained version)
+ukbiobank.add_command(Phenotool.plink_chain)
 
-#
-# -%  Output Commands (Chained)  %-
-
-@ukbiobank.command(name="csv")
-@click.pass_context
-@click.argument('files', nargs=-1, type=gzFile(mode='rb'))
-def csvfile(ctx, files):
-	"""Output as CSV."""
-	ctx.obj['constructor'] = ctx.obj.get('constructor', Phenotype)
-	ctx.obj['pheno'] = ctx.obj['constructor'](csv.DictReader(files[0]), datafields=ctx.obj['datafields'], samples=ctx.obj['samples'])
-	for fileobj in files[1:]:
-		pheno_new = ctx.obj['constructor'](csv.DictReader(fileobj), datafields=ctx.obj['datafields'], samples=ctx.obj['samples'])
-		ctx.obj['pheno'] = ctx.obj['pheno'].combine_first(pheno_new)
-	def processor(pheno):
-		if ctx.obj.get('to_be_deleted'):
-			pheno = pheno.drop(ctx.obj['to_be_deleted'], axis='columns')
-		pheno.write()
-	return processor
-
-
+# Eastwood Prevalence Command (UKBioBank Version)
+ukbiobank.add_command(Eastwood.prevalence_ukb)
 
 

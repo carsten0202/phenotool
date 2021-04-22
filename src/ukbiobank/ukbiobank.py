@@ -10,7 +10,7 @@ assert sys.version_info >= (3, 8), f"{sys.argv[0]} requires Python 3.8.0 or newe
 logger = logging.getLogger(__name__)
 
 #import pklib.pkcsv as csv
-from pkpheno import Phenotype
+from pkpheno import Phenotype, Psam
 
 
 
@@ -32,10 +32,10 @@ class UKBioBank(Phenotype):
 	mkey_id    = "EID" # Also the index, so must be unique.
 	mkey_sex   = "SEX"
 
-	def __init__(self, iterable, *args, datafields, samples=[], **kwargs):
+	def __init__(self, iterable, *args, phenovars, samples=[], **kwargs):
 		"""
 		iterable: An iterable with data...
-		datafields: The UKBiobank datafield(s) to extract.
+		phenovars: The UKBiobank datafield(s) to extract. (Named for compatibility with ancestor classes).
 		"""
 # NOTE: The second digit in datafields is called an 'instance'.
 # NOTE: The third is the array index.
@@ -48,7 +48,7 @@ class UKBioBank(Phenotype):
 
 		icol = [0]
 		headdict = next(iterable)
-		for field in datafields + [31]:
+		for field in phenovars + [31]:
 			found = False
 			for i, col in enumerate(headdict):
 				if re.match(f"\D*{field}\D", col) is not None:
@@ -66,7 +66,8 @@ class UKBioBank(Phenotype):
 	@property
 	def sex(self):
 		"""Returns the SEX in a systematic way (male/female) for querying."""
-		out = super().sex
+		out = pd.Series([pd.NA] * self._obj.index.size, name=self.mkey_sex, index=self._obj.index)
+		out[self[self.mkey_sex].pkisin(['1'])] = "male"
 		out[self[self.mkey_sex].pkisin(['0'])] = "female"
 		return out
 
@@ -82,13 +83,17 @@ class UKBioBank(Phenotype):
 
 		Note: It seems -1 and -3 are consistently used to indicate 'missing' in UKB. This is implemented here.
 		"""
+		# Ok, here's a serious bug. Value 'NA' in UKB doesn't mean 'pd.NA', rather it means False.
 		if isinstance(fields, str):
 			fields = [fields]
 		fields = [f"f{field}_" for field in fields]
-		out = super().findinfield(fields, values)
+		logger.debug(f"findinfield: Scanning fields='{fields}' for values={values}.")
+		out = pd.Series(pd.NA, index=self.index, dtype=pd.BooleanDtype())
 		cols = self.field2cols(fields)
 		if self.columns.isin(cols).any():
+			out[self.index] = self[cols].pkisin(values).any(axis='columns')
 			out[self._obj[cols].mask(self[cols].pkisin(['-1','-3']), pd.NA).isna().all(axis='columns')] = pd.NA
+		logger.debug(f"findinfield: Found = {out.to_dict()}.")
 		return out
 
 	def findinterpolated(self, field, other, values):
@@ -113,6 +118,11 @@ class UKBioBank(Phenotype):
 		"""Return any and all values in a given field."""
 		return self._obj[self.field2cols(fields)]
 
-
-
+	def to_psam(self):
+		"""Convert UKBioBank Class to Class Psam for Plink output."""
+		psam = self._obj
+		psam[Psam.mkey_id]  = self.index
+		psam[Psam.mkey_sex] = self.sex
+		psam = Psam(psam)
+		return psam
 
