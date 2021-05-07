@@ -1,6 +1,9 @@
 #!/home/fls530/miniconda3/envs/myscripts/bin/python
 
-# phenotool.py
+###########################################################
+#
+# ---%%%  Phenotool: Phenotool main file  %%%---
+#
 
 # Notes and TODOs:
 # Add option to control what is treated as a missing value
@@ -22,26 +25,13 @@ ScriptPath = str(pathlib.Path(__file__).resolve().parent.absolute())
 sys.path = [ScriptPath + '/..'] + sys.path
 
 from phenotool.stdcommand import StdCommand
+from phenotool.cli import plink_chain, rvtest_chain, snptest_chain
+import phenotool.epilog as EPILOGS
 import phenotool.options as OPTIONS
-
 import pklib.pkcsv as csv
-from pklib.pkclick import CSV, SampleList
-
-
-EPILOG = namedtuple('Epilog', ['legal'])(
-legal = """
-Written by Carsten Friis Rundsten <carsten.rundsten@sund.ku.dk>
-
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-""")
+from pklib.pkclick import CSV, gzFile, SampleList
+from pkpep import pkpep
+import ukbiobank.cli as ukbiobank
 
 # --%%  END: Perform Basic Setup  %%--
 #
@@ -54,15 +44,9 @@ GNU General Public License for more details.
 #
 # --%%  RUN: Commands  %%--
 
-#class StdCommand(click.Command):
-#	def __init__(self, *args, **kwargs):
-#		super().__init__(*args, **kwargs)
-#		self.params.insert(0, click.Argument(['files'], nargs=-1, type=click.File()))
-#		self.epilog = EPILOG.legal
-
 @click.group()
-@click.version_option(version=__version__)
 @click.option('--log', default="warning", help=OPTIONS.log, show_default=True)
+@click.version_option(version=__version__)
 def main(log):
 	"""Organize sample information for GWAS analyses.
 
@@ -75,18 +59,6 @@ Outputs sample information in formats appropriate for popular GWAS tools includi
 		raise ValueError(f"Invalid log level: '{log}'")
 	logging.basicConfig(level=log_num)
 
-
-#@main.command(cls=StdCommand, no_args_is_help=True)
-#@click.option('-c', '--columns', type=CSV(), default="", help="Comma separated list of columns to extract.")
-#def extract(files, columns):
-#	"""Extract not implemented yet. Don't really know if we need this guy, or if the options to extract cannot be handled thorugh the other commands?"""
-#	pheno = Pheno.Phenotype(csv.DictReader(files[0]), columns=columns)
-#	for fileobj in files[1:]:
-#		pheno_new = Pheno.Phenotype(csv.DictReader(fileobj), columns=columns)
-#		pheno = pheno.combine_first(pheno_new)
-#	pheno.write()
-
-from pkpep import pkpep
 
 main.add_command(pkpep.main, name="pep")
 #@main.command(cls=StdCommand, no_args_is_help=True, hidden=True)
@@ -103,7 +75,8 @@ http://pep.databio.org/en/latest/
 """
 
 
-@main.command(cls=StdCommand, no_args_is_help=True)
+@main.command(no_args_is_help=True)
+@click.argument('files', nargs=-1, type=gzFile(mode='rb'))
 @click.option('-c', '--columns', type=CSV(), default="", help=OPTIONS.columns)
 @click.option('-f', '--fam', type=str, metavar='COLUMN', default=None, help=OPTIONS.fam)
 @click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
@@ -143,7 +116,8 @@ https://www.cog-genomics.org/plink/1.9/formats#fam
 	pheno.write(header = False if fam else True)
 
 
-@main.command(cls=StdCommand, no_args_is_help=True)
+@main.command(no_args_is_help=True)
+@click.argument('files', nargs=-1, type=gzFile(mode='rb'))
 @click.option('-c', '--columns', type=CSV(), default="", help=OPTIONS.columns)
 @click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
 def rvtest(files, columns, samples):
@@ -165,9 +139,10 @@ http://zhanxw.github.io/rvtests/#phenotype-file
 	pheno.write()
 
 
-@main.command(cls=StdCommand, no_args_is_help=True)
-@click.option('-c', '--covariates', type=CSV(), default="", help="Comma separated list of columns with covariates. Print only these columns (plus any mandatory columns)")
-@click.option('-p', '--phenotypes', type=CSV(), default="", help="Comma separated list of columns with phenotypes.")
+@main.command(no_args_is_help=True)
+@click.argument('files', nargs=-1, type=gzFile(mode='rb'))
+@click.option('-c', '--covariates', type=CSV(), default="", help=OPTIONS.covariates)
+@click.option('-p', '--phenotypes', type=CSV(), default="", help=OPTIONS.phenotypes)
 @click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
 def snptest(files, covariates, phenotypes, samples):
 	"""Output phenotypes in sample format for use with Snptest.
@@ -192,14 +167,45 @@ Unofficial, but good (Scroll down):
 https://jmarchini.org/file-formats/
 """
 	import pkpheno as Pheno
-	pheno = Pheno.Snptest(csv.DictReader(files[0]), covariates=covariates, phenotypes=phenotypes, samples=samples)
+	pheno = Pheno.Snptest(csv.DictReader(files[0]), covariates=covariates, phenovars=phenotypes, samples=samples)
 	for fileobj in files[1:]:
-		pheno_new = Pheno.Snptest(csv.DictReader(fileobj), covariates=covariates, phenotypes=phenotypes, samples=samples)
+		pheno_new = Pheno.Snptest(csv.DictReader(fileobj), covariates=covariates, phenovars=phenotypes, samples=samples)
 		pheno = pheno.combine_first(pheno_new)
 	pheno.write()
 
+
+
+#
+# -%  UKBioBank Command Group  %-
+
+main.add_command(ukbiobank.ukbiobank)
+
+
+
+#
+# -%  Derive Command Group  %-
+
+@main.group(chain=True, hidden=True)
+@click.pass_context
+def derive(ctx):
+	"""Derive new columns from values in existing ones.
+
+This command group provides access to some of the mathematical functions in the pandas library.
+"""
+	# ensure that ctx.obj exists and is a dict
+	ctx.ensure_object(dict)
+
+@derive.resultcallback()
+@click.pass_context
+def derive_pipeline(ctx, processors):
+#	logger.debug(f"Pipeline: Cols to be deleted: {ctx.obj.get('to_be_deleted')}")
+	pheno = ctx.obj['pheno']
+	for processor in processors:
+		pheno = processor(pheno)
+
 # Currently implementing transform routines: rankINT is functional
-@main.command(cls=StdCommand, no_args_is_help=True, hidden=True)
+@derive.command(no_args_is_help=True)
+@click.argument('files', nargs=-1, type=gzFile(mode='rb'))
 @click.option('-c', '--columns', type=CSV(), default="", help="Comma separated list of columns to perform normalization on.")
 def test(files, columns):
 	"""Used for testing and development."""
@@ -211,15 +217,21 @@ def test(files, columns):
 	pheno = pheno.columns_rankINT(columns=columns) # Perform rankINT
 	pheno.write()
 
+
+# Plink output command (Chained version)
+derive.add_command(plink_chain)
+
+# RVtest output command (Chained version)
+derive.add_command(rvtest_chain)
+
+# Snptest output command (Chained version)
+derive.add_command(snptest_chain)
+
 # --%%  END: Commands  %%--
 #
 ##################################################
 
 
-
-import ukbiobank.cli as ukbiobank
-
-main.add_command(ukbiobank.ukbiobank)
 
 
 

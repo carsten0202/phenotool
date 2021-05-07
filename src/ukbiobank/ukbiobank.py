@@ -19,14 +19,13 @@ from pkpheno import Phenotype, Psam
 # --%%  CLASS: UKBioBank  %%--
 
 class UKBioBank(Phenotype):
-	"""Holds phenotypes in a format appropriate for UKBioBank.
-	"""
+	"""Holds phenotypes in a format appropriate for UKBioBank."""
 	__name__ = "UKBioBank"
 	MAGIC_COLS = {
 		"EID":     ["f.eid","eid"], # In Actuality, the ID 'column' isn't a column, it's the index.
 		"PAT":     Phenotype.MAGIC_COLS["PAT"],
 		"MAT":     Phenotype.MAGIC_COLS["MAT"],
-		"SEX":     ["f.31.0.0","31-0.0"], # SEX should be encoded with males as '1', females as '2' and missing as '0' or 'NA'
+		"SEX":     ["f.31.0.0","31-0.0"], # UKB encodes as 0=female, but SEX should be encoded with males as '1', females as '2' and missing as '0' or 'NA'
 	}
 
 	mkey_id    = "EID" # Also the index, so must be unique.
@@ -55,9 +54,9 @@ class UKBioBank(Phenotype):
 					icol.append(i)
 					found = True
 			if not found:
-				logger.error(f"UKBioBank: Datafield '{field}' doesn't exist in input data.")
+				logger.error(f"UKBioBank: Datafield '{field}' does not exist in input data.")
 		logger.debug(f"UKBioBank: Selected columns {[list(headdict.keys())[i] for i in list(dict.fromkeys(icol))]}")
-		super().__init__(genfunc(iterable, icol, rows=samples), *args, columns=[list(headdict.keys())[i] for i in list(dict.fromkeys(icol))], **kwargs)
+		super().__init__(genfunc(iterable, icol, rows=samples), *args, columns=[list(headdict.keys())[i] for i in list(dict.fromkeys(icol))], samples=samples, **kwargs)
 		patone = re.compile("f\.")
 		pattwo = re.compile("[-.]")
 		self._obj = self._obj.rename(columns=lambda label: pattwo.sub("_",patone.sub('f',label)))
@@ -110,19 +109,11 @@ class UKBioBank(Phenotype):
 		mask = self[cols2].pkisin(values)
 		mask = mask.rename(columns=dict(zip(cols2,cols1)))
 		out = self._obj[cols1].mask(~mask, other=pd.NA)
-		out = out.mask(out.isin([-1,-3,'-1','-3']), other=pd.NA).mean(axis='columns')
+		out = out.mask(out.isin([-1,-3,'-1','-3']), other=pd.NA).dropna(axis='columns', how='all')
 		logger.debug(f"findinterpolated: field={field}; other={other}; values={values}; return={out.to_dict()}")
 		return out
 
 	def findfield(self, fields):
 		"""Return any and all values in a given field."""
 		return self._obj[self.field2cols(fields)]
-
-	def to_psam(self):
-		"""Convert UKBioBank Class to Class Psam for Plink output."""
-		psam = self._obj
-		psam[Psam.mkey_id]  = self.index
-		psam[Psam.mkey_sex] = self.sex
-		psam = Psam(psam)
-		return psam
 

@@ -1,4 +1,5 @@
 
+###########################################################
 #
 # ---%%%  pkpheno.py: Handling Phenotype information  %%%---
 #
@@ -30,7 +31,6 @@ import pklib.pkcsv as csv
 #
 # --%%	RUN: Define CLASS pheno  %%--
 
-#@pd.api.extensions.register_dataframe_accessor("pheno")
 class Phenotype:
 	"""A handy-dandy object for storing phenotypes. Will be cool to also import into other scripts when working with phenotypes"""
 	__name__ = "Phenotype"
@@ -47,11 +47,13 @@ class Phenotype:
 
 	def __init__(self, *args, phenovars=[], samples=[], **kwargs):
 		self._obj = pd.DataFrame(*args, **kwargs)
-		logger.info(f"{self.__name__}: Parsing file with columns: {self._obj.columns.to_list()}")
+		logger.info(f"{self.__name__}: Parsing file with columns[:10] = {self._obj.columns.to_list()[:10]}")
+		logger.debug(f"{self.__name__}: Parsing file with columns: {self._obj.columns.to_list()}")
 		self._obj = self._set_magic_kcol()
 		self._obj = self._obj.set_index(self.mkey_id)
 		self = self.set_columns(columns=phenovars)
-		self = self.set_samples(samples=samples)
+		if samples:
+			self.samples = samples
 		if self.is_sample_data():
 			self._sampletypes = self._obj.index[0]
 			self._obj = self._obj.drop(self._obj.index[0])
@@ -59,10 +61,10 @@ class Phenotype:
 
 # Maybe move this to a method? Like 'standardize', or 'conform'?
 		self._obj.replace('NA', np.NaN, inplace=True)
-		for col in self._obj.columns:
+		for col in self._obj.select_dtypes('object').columns:
 			self._obj[col] = pd.to_numeric(self._obj[col], errors='ignore')
 		self._obj = self._obj.convert_dtypes()
-		logger.debug(f"Columns after __init__: {self._obj.columns.to_list()}")
+		logger.debug(f"Columns after __init__: {self.columns}")
 
 	def __getitem__(self, key):
 		"""Redirects index operations to the _obj attribute."""
@@ -130,12 +132,32 @@ class Phenotype:
 		return self._obj.index
 
 	@property
+	def samples(self):
+		"""Synonym for self.index."""
+		return self.index
+
+	@property
 	def sex(self):
 		"""Returns the SEX in a systematic way (male/female) for querying."""
 		out = pd.Series(np.zeros(self._obj.index.size) + np.nan, name=self.mkey_sex, index=self._obj.index)
 		out[self[self.mkey_sex].pkisin(['1', 'M'])] = "male"
 		out[self[self.mkey_sex].pkisin(['2', 'F'])] = "female"
 		return out
+
+	@samples.setter
+	def samples(self, value):
+		"""Return: All specified samples in specified order."""
+		try: self._obj = self._obj.reindex(value)
+		except Exception as ex:
+			sys.exit(f"{ex} in samples.setter...")
+
+#	@sex.setter
+#	def sex(self, value):
+#		"""Sets the sex column in error-robust way."""
+#		val = pd.Series(value, dtype="category", index=self.index)
+#		val = val.cat.rename_categories(dict(zip([2, 'F', 'f', 'FEMALE', 1, 'M', 'm', 'MALE'], ['female']*4 + ['male']*4)))
+#		logger.debug("{val}")
+#		self._obj[self.mkey_sex] = val
 
 	def columns_rankINT(self, columns=[]):
 		"""Return: Self after Rank-based inverse normally transformation on cols given by 'columns'. Default: All normal columns"""
@@ -222,11 +244,51 @@ class Phenotype:
 		self._obj = self._obj.loc[:,cols]
 		return self
 
-	def set_samples(self, samples=[]):
-		"""Return: All specified samples in specified order."""
-		if samples:
-			self._obj = self._obj.reindex(samples)
-		return self
+	def to_psam(self):
+		"""Convert Phenotype Class to Class Psam for Plink output."""
+		obj = self._obj.drop(columns=[self.mkey_id, self.mkey_sex, getattr(self, 'mkey_altid', None), getattr(self, 'mkey_mat', None), getattr(self, 'mkey_pat', None)], errors='ignore')
+		obj[Psam.mkey_id] = self.index
+		obj[Psam.mkey_sex] = self.sex
+		try: obj[Psam.mkey_altid] = self._obj[self.mkey_altid]
+		except AttributeError:
+			pass
+		try: obj[Psam.mkey_mat] = self._obj[self.mkey_mat]
+		except AttributeError:
+			pass
+		try: obj[Psam.mkey_pat] = self._obj[self.mkey_pat]
+		except AttributeError:
+			pass
+		psam = Psam(obj)
+		return psam
+
+	def to_rvtest(self):
+		"""Convert Phenotype Class to Class RVtest for RVtest output."""
+		obj = self._obj.drop(columns=[self.mkey_id, self.mkey_sex, getattr(self, 'mkey_altid', None), getattr(self, 'mkey_mat', None), getattr(self, 'mkey_pat', None)], errors='ignore')
+		obj[RVtest.mkey_id] = self.index
+		obj[RVtest.mkey_sex] = self.sex
+		try: obj[RVtest.mkey_altid] = self._obj[self.mkey_altid]
+		except AttributeError:
+			pass
+		try: obj[RVtest.mkey_mat] = self._obj[self.mkey_mat]
+		except AttributeError:
+			pass
+		try: obj[RVtest.mkey_pat] = self._obj[self.mkey_pat]
+		except AttributeError:
+			pass
+		rvtest = RVtest(obj)
+		return rvtest
+
+	def to_snptest(self, covariates=[]):
+		"""Convert Phenotype Class to Class Snptest for sample file output."""
+		obj = self._obj.drop(columns=[self.mkey_id, self.mkey_sex, getattr(self, 'mkey_altid', None)], errors='ignore')
+		obj[Snptest.mkey_id] = self.index
+		obj[Snptest.mkey_sex] = self.sex
+		try: obj[Snptest.mkey_altid] = self._obj[self.mkey_altid]
+		except AttributeError:
+			pass
+		snptest = Snptest(obj, covariates=covariates)
+		return snptest
+
 
 	def write(self, dest=sys.stdout, *args, **kwargs):
 		"""Output self._obj to dest."""
@@ -267,15 +329,15 @@ class Snptest(Phenotype):
 	mkey_altid = "ID_2"
 	mkey_sex   = "sex"
 
-	def __init__(self, *args, phenovars=[], covariates=[], phenotypes=[], **kwargs):
-		""""""
-		super().__init__(*args, phenovars = phenovars + covariates + phenotypes, **kwargs)
+	def __init__(self, *args, phenovars=[], covariates=[], **kwargs):
+		"""Init the Snptest object. Phenovars are labelled as phenotypes unless given in covariates."""
+		super().__init__(*args, phenovars = phenovars + covariates, **kwargs)
 		self._obj[self.mkey_altid] = self._obj.index
 		self._obj['missing'] = self._obj.get('missing', pd.Series(pd.NA * self._obj.index.size, index=self._obj.index))
 		self._obj[self.mkey_sex] = pd.Categorical(self._obj.get(self.mkey_sex, [""]*len(self._obj.index)))
 		self._obj[self.mkey_sex] = self._obj[self.mkey_sex].cat.rename_categories({0: pd.NA, 1: 'male', 2: 'female'})
 		self.covariates = covariates
-		self.phenotypes = phenotypes
+		self.phenotypes = [p for p in self.columns if p not in covariates + list(self.MAGIC_COLS.keys())]
 		Snptest._validate(self)
 
 	@property
@@ -319,7 +381,7 @@ class Snptest(Phenotype):
 	@covariates.setter
 	def covariates(self, value):
 		value = pd.Index(value)
-		self._covariates = value.intersection(self._obj.select_dtypes(include='number').columns)
+		self._covariates = value.intersection(self._obj.select_dtypes(include='number').columns).to_list()
 
 	@phenotypes.setter
 	def phenotypes(self, value):
@@ -332,6 +394,13 @@ class Snptest(Phenotype):
 		obj.covariates = self.covariates.union(other.covariates)
 		obj.phenotypes = self.phenotypes.union(other.phenotypes)
 		return obj
+
+	def to_snptest(self, covariates=None):
+		"""Checks if covariates is not None and uses self.covariates instead."""
+		if covariates:
+			return super().to_snptest(covariates)
+		else:
+			return super().to_snptest(self.covariates)
 
 	def write(self, *args, dest=sys.stdout, **kwargs):
 # NOTE: All phenotypes should appear after the covariates in this file.
@@ -383,6 +452,10 @@ class Psam(Phenotype):
 		self._obj[self.mkey_sex]   = self._obj[self.mkey_sex].cat.rename_categories({0 : pd.NA, 'M' : 1, 'Male' : 1, 'male' : 1, 'F' : 2, 'Female' : 2, 'female' : 2})
 		Psam._validate(self)
 
+	def to_psam(self):
+		"""No conversion necessary; self is already Psam."""
+		return self
+
 	def write(self, *args, dest=sys.stdout, header=True, **kwargs):
 		"""Like super() but handles *.fam files through header=False if self._obj only has one phenotype."""
 		self = self.set_columns()
@@ -426,6 +499,10 @@ class RVtest(Psam):
 		super().__init__(*args, **kwargs)
 		self._obj[self.mkey_sex] = self._obj[self.mkey_sex].cat.rename_categories({1 : 0, 2 : 1})
 		RVtest._validate(self)
+
+	def to_rvtest(self):
+		"""No conversion necessary; self is already RVtest."""
+		return self
 
 	def write(self, *args, dest=sys.stdout, **kwargs):
 		"""Super() skips over Psam to avoid the initial '#'."""

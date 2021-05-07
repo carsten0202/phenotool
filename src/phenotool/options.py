@@ -30,24 +30,94 @@ Comma separated list of columns with phenotypes.
 
 samples = """
 File with samples to include in the output. Samples will be outputted in the exact same order as in the sample file
-including outputting samples with missing values if no phenotype information was found. The sample file can be a plain text file with sample names or a VCF file with sample genotypes.
+including outputting samples with missing values if no phenotype information was found. The sample file can be a plain
+text file with sample names or a VCF file with sample genotypes.
+"""
+
+
+
+#
+# -%  For Derive and friends  %-
+
+columnname = """
+Name of the output data column. Will be overridden if it already exists.
+"""
+
+columnprefix = """
+Prefix for output data columns.
+"""
+
+
+
+#
+# -%  For Snptest  %-
+
+covariates = """
+Comma separated list of columns with covariates. Print only these columns (plus any mandatory columns).
+"""
+
+phenotypes = """
+Comma separated list of columns with phenotypes.
+"""
+
+
+#
+# -%  For UKBioBank  %-
+
+datafields = """
+Data Field(s) to output. Several fields can be specified as a comma-separated string with no spaces.
+"""
+
+instances = """
+Instances to output. Several instances can be specified as a comma-separated string with no spaces.
+"""
+
+values = """
+Only subject having this value in at least one of the specified data field(s) will be printed. Note that this uses
+text-based Regular Expression matching, so '-v 1' will match a value of '12'. Use '-v \"\\b1\\b\"' to match only '1'.
+Default is to print all subjects having at least one non-empty value in the specified data field(s).
 """
 
 
 #
 # -%  For the Prevalence/Incidence Algorithms  %-
 
-agediag = """Subjects age at the time disease was reported.
+agediag = """
+Subjects age at the time disease was reported.
 """
 
-diagnosed = """Empirical evidence eg. provided by Doctor.
+baseline = """
+Baseline date. All prior information will be considered baseline data.
 """
 
-ethnicity = """Used to set typical age of onset for type 2 diabetes.
+datediag = """
+Diagnoses and dates when they were first given.
 """
 
-reported = """Circumstantial evidence eg. based on questionnaire, interview, etc.
+diagnosed = """
+Empirical evidence eg. provided by Doctor.
 """
 
-treatments = """Evidence of relevant treatments; eg. Insulin for Diabetes.
+ethnicity = """
+Used to set typical age of onset for type 2 diabetes.
+"""
+
+inciinterval = """
+Output incidence as intervals.
+"""
+
+prevstyles = """
+Sets the style of the prevalence output categories.
+"""
+
+reported = """
+Circumstantial evidence eg. based on questionnaire, interview, etc.
+"""
+
+stopdate = """
+Last date to consider. All information after this date will be ignored.
+"""
+
+treatments = """
+Evidence of relevant treatments; eg. Insulin for Diabetes.
 """
