@@ -7,7 +7,7 @@
 #       Maybe a function to dig up most recent annotation for a given application
 #               ie you'd supply an application nunmber rather than a file?
 
-__version__ = """0.4.0"""
+__version__ = """0.5"""
 
 import click
 import logging
@@ -19,12 +19,13 @@ logger = logging.getLogger(__name__)
 import eastwood.cli as Eastwood
 import phenotool.cli as Phenotool
 import phenotool.options as OPTIONS
+import phenotool.epilog as EPILOG
 import pklib.pkcsv as csv
 from pklib.pkclick import CSV, gzFile, SampleList
 from pkpheno.pkpheno import Phenotype
 from ukbiobank.ukbiobank import UKBioBank
 
-@click.group(chain=True, invoke_without_command=True, no_args_is_help=True)
+@click.group(chain=True, invoke_without_command=True, no_args_is_help=True, epilog=EPILOG.chained)
 @click.option('-d', '--datafields', type=CSV(), default="", help=OPTIONS.datafields)
 @click.option('-i', '--instances', type=CSV(), help=OPTIONS.instances)
 @click.option('--log', default="warning", show_default=True, help=OPTIONS.log)
@@ -32,7 +33,7 @@ from ukbiobank.ukbiobank import UKBioBank
 @click.option('-v', '--values', default=".", help=OPTIONS.values)
 @click.version_option(version=__version__)
 @click.pass_context
-def ukbiobank(ctx, datafields, instances, samples, values):
+def ukbiobank(ctx, datafields, instances, log, samples, values):
 	"""UNDER DEVELOPMENT - NOT WELL TESTED.
 
 The UK Biobank lists thousands of phenotypic variables in a strict three tier hierarchy, which requires some
@@ -42,7 +43,7 @@ colleced. Below the instances we find the data arrays, which are always numerica
 considerably from datafield to datafield. It is therefore recommended to study the data field descriptions
 carefully, for example by using the showcase link given below.
 
-To learn more about the individual datafields, their data and their encodings please refer to:
+To learn more about the individual datafields their data and their encodings, please refer to:
 https://biobank.ndph.ox.ac.uk/showcase/search.cgi
 """
 #	logger.debug(f"From samplefile: {samples}")
@@ -66,7 +67,7 @@ https://biobank.ndph.ox.ac.uk/showcase/search.cgi
 
 @ukbiobank.resultcallback()
 @click.pass_context
-def process_pipeline(ctx, processors, datafields, instances, samples, values):
+def process_pipeline(ctx, processors, datafields, instances, log, samples, values):
 	logger.debug(f"Pipeline: Cols to be deleted: {ctx.obj.get('to_be_deleted')}")
 	pheno = ctx.obj['pheno']
 	for processor in processors:

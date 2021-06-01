@@ -4,6 +4,13 @@
 
 # EPILOG = namedtuple('Epilog', ['legal'])(
 
+chained = """
+To perform an actual run, specify one or more of the commands given above. Each command has it's own options and help
+page (accessible with '--help'. You can mix and match commands in which case they will be executed sequentially - even
+giving the same command several times with different options. Only limitation is that you must specify one and only one
+output command, and that output command must be the last one given.
+"""
+
 legal = """
 Written by Carsten Friis Rundsten <carsten.rundsten@sund.ku.dk>
 

@@ -1,6 +1,6 @@
 package:
   name: phenotool
-  version: "0.11.3"
+  version: "0.12"
 
 source:
   git_url: &github https://github.com/carsten0202/phenotool
@@ -8,8 +8,8 @@ source:
 
 build:
   entry_points:
-    - phenotool = phenotool:main
-    - ukbiobank = ukbiobank:main
+    - phenotool = src.phenotool.phenotool:main
+    - ukbiobank = src.ukbiobank.ukbiobank:main
 
 requirements:
   build:
@@ -17,6 +17,9 @@ requirements:
     - setuptools >=49.0
 
   host:
+    - python >=3.8
+
+  run:
     - python >=3.8
     - click >=7.1
     - numpy >=1.16

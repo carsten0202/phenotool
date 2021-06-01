@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 import phenotool.cli as Phenotool
 import phenotool.options as OPTIONS
+import phenotool.epilog as EPILOG
 from pklib.pkclick import CSV, gzFile, Timedelta
 import pklib.pkcsv as csv
 from eastwood.eastwood import Incidence, Prevalence
@@ -29,7 +30,8 @@ from ukbiobank.ukbiobank import UKBioBank
 #
 # -%  Incidence Command (Chain Version)  %-
 
-@click.command(name="incidence", no_args_is_help=True)
+# default=str(date.today()))
+@click.command(name="incidence", no_args_is_help=True, epilog=EPILOG.chained)
 @click.pass_context
 @click.option('-b', '--baseline', default=str(Incidence.UKBbaseline.date()), show_default=True, type=click.DateTime(formats=["%Y-%m-%d"]), help=OPTIONS.baseline)
 @click.option('-e', '--enddate', default=str(Incidence.UKBenddate.date()), show_default=True, type=click.DateTime(formats=["%Y-%m-%d"]), help=OPTIONS.stopdate)
@@ -37,7 +39,10 @@ from ukbiobank.ukbiobank import UKBioBank
 @click.option('-p', '--prefix', default="Incidence", show_default=True, help=OPTIONS.columnprefix)
 def incidence_ukb(ctx, baseline, prefix, enddate, interval):
 	"""Incidence (diabetes) algorithm from Eastwood2016.
-              default=str(date.today()))
+
+Incidence is calculated by first consulting a prevalence algorithm (same as for the 'prevalence' command) to mask out
+any cases occuring prior to the baseline date. It then draws upon secondary care data from the UKBiobank, originally
+drawn from the English Clinical Practice Research, to calculate incidence rates between the baseline and end dates.
 
 CITATION:
 
@@ -63,13 +68,16 @@ https://doi.org/10.1371/journal.pone.0162388
 #
 # -%  Prevalence Command (Chain Version)  %-
 
-@click.command(name="prevalence", no_args_is_help=True)
+@click.command(name="prevalence", no_args_is_help=True, epilog=EPILOG.chained)
 @click.pass_context
 @click.option('-b', '--baseline', default=str(Prevalence.UKBbaseline.date()), show_default=True, type=click.DateTime(formats=["%Y-%m-%d"]), help=OPTIONS.baseline)
 @click.option('-n', '--name', default="Prevalence", show_default=True, help=OPTIONS.columnname)
 @click.option('-s', '--style', default="eastwood", show_default=True, type=click.Choice(Prevalence.styles, case_sensitive=False), help=OPTIONS.prevstyles)
 def prevalence_ukb(ctx, baseline, name, style):
 	"""Prevalence (diabetes) algorithm from Eastwood2016.
+
+The algorithm uses UK Biobank self-reported medical history and medication as well as hospital in-patient data to
+assign prevalent diabetes and type.
 
 CITATION:
 
@@ -104,6 +112,10 @@ https://doi.org/10.1371/journal.pone.0162388
 @click.version_option(version=__version__)
 def incidence(ctx, baseline, enddate, interval, prefix):
 	"""Incidence (diabetes) algorithm from Eastwood2016.
+
+Incidence is calculated by first consulting a prevalence algorithm (same as for the 'prevalence' command) to mask out
+any cases occuring prior to the baseline date. It then draws upon secondary care data from the UKBiobank, originally
+drawn from the English Clinical Practice Research, to calculate incidence rates between the baseline and end dates.
 
 CITATION:
 
@@ -161,7 +173,11 @@ incidence.add_command(Phenotool.snptest_chain)
 def prevalence(ctx, baseline, name, style):
 	"""Prevalence (diabetes) algorithm from Eastwood2016
 
+The algorithm uses UK Biobank self-reported medical history and medication as well as hospital in-patient data to
+assign prevalent diabetes and type.
+
 CITATION:
+
 Algorithms for the capture and adjudication of prevalent and incident diabetes in UK Biobank
 SV Eastwood, R Mathur, M Atkinson, S Brophy.
 PloS one 2016 Sep 15; 11(9): e0162388
