@@ -8,8 +8,8 @@ source:
 
 build:
   entry_points:
-    - phenotool = src.phenotool.phenotool:main
-    - ukbiobank = src.ukbiobank.ukbiobank:main
+    - phenotool = phenotool.phenotool:main
+    - ukbiobank = ukbiobank.ukbiobank:main
 
 requirements:
   build:
@@ -18,6 +18,9 @@ requirements:
 
   host:
     - python >=3.8
+    - click >=7.1
+    - numpy >=1.16
+    - pandas >=1.2
 
   run:
     - python >=3.8

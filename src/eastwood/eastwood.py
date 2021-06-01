@@ -206,7 +206,7 @@ class Prevalence(Eastwood):
 		self.dm.loc[self.dm['t1dm_ni'],  'agedm_ts_or_ni'] = pheno.findinterpolated('20009','20002','1222').mean(axis='columns') # Nurse interview - type 1 DM
 		self.dm.loc[self.dm['t2dm_ni'],  'agedm_ts_or_ni'] = pheno.findinterpolated('20009','20002','1223').mean(axis='columns') # Nurse interview - type 2 DM
 		logger.info(f"Init: {sum(self.dm['agedm_ts_or_ni'] > 0)} subjects with age at diagnosis.")
-		logger.debug(f"Init: Subject={self.DEBUGsubject} {self.dm.loc[self.DEBUGsubject,]}")
+#		logger.debug(f"Init: Subject={self.DEBUGsubject} {self.dm.loc[self.DEBUGsubject,]}")
 
 		# Precalculate the prevalence
 		self.prevalence = self.prevalenceA()
@@ -330,7 +330,7 @@ class Prevalence(Eastwood):
 		prevalence[x != True] = self.Negative
 		subjects_left[x != True] = False
 		logger.info(f"   Prevalence 1.1: {sum(x != True)} subjects assigned '{self.Negative}'; {subjects_left.sum()} subjects remaining.")
-		logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
+#		logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
 
 		# Fig 2 (Flowchart): 1.2
 		self.dm['anydmrx_ni_sr'] = self.dm[['drug_ins_ni', 'drug_metf_ni', 'drug_nonmetf_oad_ni', 'drug_ins_sr']].any(axis='columns')
@@ -347,7 +347,7 @@ class Prevalence(Eastwood):
 		prevalence[x] = self.GDModerate
 		subjects_left[x] = False
 		logger.info(f"   Prevalence 1.2: {x.sum()} subjects asigned '{self.GDModerate}'; {subjects_left.sum()} subjects remaining.")
-		logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
+#		logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
 
 		# Fig 2 (Flowchart): 1.3
 		x = self.dm['drug_nonmetf_oad_ni']
@@ -355,7 +355,7 @@ class Prevalence(Eastwood):
 		prevalence[x] = self.T2Moderate
 		subjects_left[x] = False
 		logger.info(f"   Prevalence 1.3: {x.sum()} subjects asigned '{self.T2Moderate}'; {subjects_left.sum()} subjects remaining.")
-		logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
+#		logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
 
 		# Fig 2 (Flowchart): 1.4
 		x = pd.concat([
@@ -366,7 +366,7 @@ class Prevalence(Eastwood):
 		prevalence[x] = self.T2Moderate
 		subjects_left[x] = False
 		logger.info(f"   Prevalence 1.4: {x.sum()} subjects asigned '{self.T2Moderate }'; {subjects_left.sum()} subjects remaining.")
-		logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
+#		logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
 
 		# Fig 2 (Flowchart): 1.5
 		x = self.dm[['drug_ins_sr', 'drug_ins_ni', 'insat1yr', 't1dm_ni']].any(axis='columns')
@@ -376,7 +376,7 @@ class Prevalence(Eastwood):
 		subjects_left[x] = False
 		prevalence.loc[subjects_left != False] = self.T2Moderate
 		logger.info(f"   Prevalence 1.5: {sum(subjects_left != False)} subjects asigned '{self.T2Moderate}'; {x.sum()} subjects remaining.")
-		logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
+#		logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
 		prevalence[x] = self.T1Moderate
 		logger.info(f"Prevalence Algorithm A finished: Remaining {x.sum()} subjects asigned '{self.T1Moderate}'.")
 
