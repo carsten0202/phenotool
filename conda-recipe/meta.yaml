@@ -9,6 +9,7 @@ source:
 build:
   entry_points:
     - phenotool = phenotool:main
+    - ukbiobank = ukbiobank:main
 
 requirements:
   build:
