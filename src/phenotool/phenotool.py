@@ -13,7 +13,7 @@
 #
 # --%%  RUN: Perform Basic Setup  %%--
 
-__version__ = """0.11.2 (Development Version)"""
+__version__ = """0.11.3 (Development Version)"""
 
 import click
 from collections import namedtuple
@@ -25,7 +25,7 @@ ScriptPath = str(pathlib.Path(__file__).resolve().parent.absolute())
 sys.path = [ScriptPath + '/..'] + sys.path
 
 from phenotool.stdcommand import StdCommand
-from phenotool.cli import plink_chain, rvtest_chain, snptest_chain
+from phenotool.cli import plink_chain, rvtest_chain, snptest_chain, textfile_chain
 import phenotool.epilog as EPILOGS
 import phenotool.options as OPTIONS
 import pklib.pkcsv as csv
@@ -53,8 +53,7 @@ def main(log):
 Read column-based sample information and perform simple sorting, filtering and transformations on phenotype values.
 Outputs sample information in formats appropriate for popular GWAS tools including Snptest, RVtest and Plink. 
 """
-	try:
-		log_num = getattr(logging, log.upper())
+	try: log_num = getattr(logging, log.upper())
 	except AttributeError:
 		raise ValueError(f"Invalid log level: '{log}'")
 	logging.basicConfig(level=log_num)
@@ -185,7 +184,7 @@ main.add_command(ukbiobank.ukbiobank)
 #
 # -%  Derive Command Group  %-
 
-@main.group(chain=True, hidden=True)
+@main.group(chain=True)
 @click.pass_context
 def derive(ctx):
 	"""Derive new columns from values in existing ones.
@@ -198,24 +197,26 @@ This command group provides access to some of the mathematical functions in the 
 @derive.resultcallback()
 @click.pass_context
 def derive_pipeline(ctx, processors):
-#	logger.debug(f"Pipeline: Cols to be deleted: {ctx.obj.get('to_be_deleted')}")
+	logger.debug(f"Pipeline: Cols to be deleted: {ctx.obj.get('to_be_deleted')}")
 	pheno = ctx.obj['pheno']
 	for processor in processors:
 		pheno = processor(pheno)
 
 # Currently implementing transform routines: rankINT is functional
-@derive.command(no_args_is_help=True)
-@click.argument('files', nargs=-1, type=gzFile(mode='rb'))
+@derive.command(name='rankinv', no_args_is_help=True)
+@click.pass_context
 @click.option('-c', '--columns', type=CSV(), default="", help="Comma separated list of columns to perform normalization on.")
-def test(files, columns):
-	"""Used for testing and development."""
-	import pkpheno as Pheno
-	pheno = Pheno.Phenotype(csv.DictReader(files[0]))
-	for fileobj in files[1:]:
-		pheno_new = Pheno.Phenotype(csv.DictReader(fileobj))
-		pheno = pheno.combine_first(pheno_new)
-	pheno = pheno.columns_rankINT(columns=columns) # Perform rankINT
-	pheno.write()
+@click.option('-p', '--prefix', default="rankinv_", show_default=True, help=OPTIONS.columnprefix)
+def rankinv_chain(ctx, columns, prefix):
+	"""Perform Rank-Based Inverse Normal Transformations."""
+	def processor(pheno):
+		pheno[[f"{prefix}{col}" for col in columns]] = pheno.columns_rankINT(columns=columns)
+		return pheno
+
+	for col in columns:
+		if col not in ctx.obj['phenovars']:
+			ctx.obj['to_be_deleted'] = ctx.obj.get('to_be_deleted', list()) + [field]
+			ctx.obj['phenovars'].append(field)
 
 
 # Plink output command (Chained version)
@@ -226,6 +227,9 @@ derive.add_command(rvtest_chain)
 
 # Snptest output command (Chained version)
 derive.add_command(snptest_chain)
+
+# Textfile output command (Chained version)
+derive.add_command(textfile_chain)
 
 # --%%  END: Commands  %%--
 #

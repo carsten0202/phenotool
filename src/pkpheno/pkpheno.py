@@ -64,7 +64,7 @@ class Phenotype:
 		for col in self._obj.select_dtypes('object').columns:
 			self._obj[col] = pd.to_numeric(self._obj[col], errors='ignore')
 		self._obj = self._obj.convert_dtypes()
-		logger.debug(f"Columns after __init__: {self.columns}")
+		logger.debug(f"Columns after __init__: {self.columns.to_list()}")
 
 	def __getitem__(self, key):
 		"""Redirects index operations to the _obj attribute."""
@@ -108,7 +108,7 @@ class Phenotype:
 
 	@property
 	def colnames(self):
-		"""Return: All colnames in _obj as list"""
+		"""Return: All colnames in _obj as list."""
 		return self._obj.columns.to_list()
 
 	@property
@@ -118,13 +118,18 @@ class Phenotype:
 
 	@property
 	def colnames_normal(self):
-		"""Return: All colnames in _obj which are not magical."""
+		"""Return: All colnames in _obj which are not magical as list."""
 		return [col for col in self._obj.columns if col not in self.colnames_magic]
 
 	@property
 	def columns(self):
 		"""Returns the columns of _obj."""
 		return self._obj.columns
+
+	@property
+	def df(self):
+		"""Return the pheno DataFrame."""
+		return self._obj
 
 	@property
 	def index(self):
@@ -159,13 +164,6 @@ class Phenotype:
 #		logger.debug("{val}")
 #		self._obj[self.mkey_sex] = val
 
-	def columns_rankINT(self, columns=[]):
-		"""Return: Self after Rank-based inverse normally transformation on cols given by 'columns'. Default: All normal columns"""
-		columns = self.colnames_translate(columns) if columns else self.colnames_normal
-		for col in columns:
-			self._obj[col] = rank_INT(self._obj[col])
-		return self
-
 	def colnames_translate(self, columns):
 		"""Translate names in columns to the canonical magic column names used by self."""
 		outcols = []
@@ -183,7 +181,18 @@ class Phenotype:
 		self._obj = self._obj.fillna(np.NaN)
 		return self
 
+	def derive_rankINT(self, columns=None):
+		"""Return: DataFrame with results from a rank-based inverse normally transformation on cols given by
+		'columns'.
+		Default: All normal columns."""
+		columns = self.colnames_translate(columns) if columns else self.colnames_normal
+		df = pd.DataFrame()
+		for col in columns:
+			df[col] = rank_INT(self._obj[col])
+		return df
+
 	def drop(self, *args, **kwargs):
+		"""NOTE: This guy actually drops inplace..."""
 		self._obj = self._obj.drop(*args, **kwargs)
 		return self
 
@@ -194,23 +203,35 @@ class Phenotype:
 		if not isinstance(fields, list):
 			fields = [fields]
 		for field in fields:
-			out = out.append(cols[cols.str.contains(field, regex=True)])
+			out = out.append(cols[cols.str.contains(str(field), regex=True)])
 		logger.debug(f"field2cols: Fields={fields}; Found cols={out.to_list()}.")
 		return out
 
-	def findinfield(self, fields, values):
-		"""Find value in indicated fields.
+	def findfield(self, fields):
+		"""Find all column names containing fields and return those as DataFrame."""
+		out = self.df[self.field2cols(fields)]
+		return out
 
-		Return:
-		    A pd.Series with True/False for each row describing if row contained the value.
+	def findinfield(self, fields, values, *args, mask=None):
+		"""Find values in indicated fields.
+
+		fields: The field(s) to search through. Forwarded to field2cols.
+		values: The value(s) to search for. Forwarded to pkisin.
+		mask: An optional mask to apply before search. Forwarded to pd.mask()
+
+		Return: A pd.Series with True/False for each row describing if row contained the value.
 		"""
-		logger.debug(f"findinfield: Scanning fields='{fields}' for values={values}.")
-		out = pd.Series(pd.NA, index=self.index, dtype=pd.BooleanDtype())
+		out = pd.Series(pd.NA, index=self.index, dtype='boolean')
 		cols = self.field2cols(fields)
 		if self.columns.isin(cols).any():
-			out[self.index] = self[cols].pkisin(values).any(axis='columns')
-			out[self._obj[cols].isna().all(axis='columns')] = pd.NA
-		logger.debug(f"findinfield: Found = {out.to_dict()}.")
+			df = self[cols]
+			if mask is None:
+				mask = pd.DataFrame(False, index=df.index, columns=df.columns)
+			else:
+				logger.debug(f"findinfield: Mask = {mask.to_dict()}")
+			out[df.index] = df.pkisin(values).any(axis='columns')
+			out[df._obj.mask(mask, pd.NA).isna().all(axis='columns')] = pd.NA
+		logger.debug(f"findinfield: Scanning for values={values}; Found = {out.to_dict()}.")
 		return out
 
 	def is_sample_data(self):
@@ -289,6 +310,17 @@ class Phenotype:
 		snptest = Snptest(obj, covariates=covariates)
 		return snptest
 
+	def to_textfile(self):
+		"""Convert Phenotype Class to Class TextFile for custom file output."""
+		from .textfile import TextFile
+		obj = self._obj.drop(columns=[self.mkey_id, self.mkey_sex, getattr(self, 'mkey_altid', None)], errors='ignore')
+		obj[TextFile.mkey_id] = self.index
+		obj[TextFile.mkey_sex] = self.sex
+		try: obj[TextFile.mkey_altid] = self._obj[self.mkey_altid]
+		except AttributeError:
+			pass
+		textfile = TextFile(obj)
+		return textfile
 
 	def write(self, dest=sys.stdout, *args, **kwargs):
 		"""Output self._obj to dest."""

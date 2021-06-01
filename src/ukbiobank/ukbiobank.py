@@ -74,25 +74,34 @@ class UKBioBank(Phenotype):
 		labels = self.field2cols(labels)
 		return super().drop(labels, *args, **kwargs)
 
-	def findinfield(self, fields, values):
+	def field2cols(self, fields):
+		"""Find all column names containing 'field' using regex."""
+
+		if isinstance(fields, str):
+			fields = [fields]
+		fields = [f"f{field}_" for field in fields]
+		return super().field2cols(fields)
+
+	def findinfield(self, fields, values, instances=None, *args, mask=None):
 		"""Find value in indicated fields.
 
-		Return:
-		    A pd.Series with True/False for each row describing if row contained the value.
+		fields: The field(s) to search through. Forwarded to field2cols.
+		values: The value(s) to search for. Forwarded to pkisin.
+		instances: A pd.Series with same index as self holding the instances to use.
+		mask: An optional mask to apply before search. Forwarded to pd.mask()
+
+		Return: A pd.Series with True/False for each row describing if row contained the value.
 
 		Note: It seems -1 and -3 are consistently used to indicate 'missing' in UKB. This is implemented here.
 		"""
 		# Ok, here's a serious bug. Value 'NA' in UKB doesn't mean 'pd.NA', rather it means False.
-		if isinstance(fields, str):
-			fields = [fields]
-		fields = [f"f{field}_" for field in fields]
-		logger.debug(f"findinfield: Scanning fields='{fields}' for values={values}.")
-		out = pd.Series(pd.NA, index=self.index, dtype=pd.BooleanDtype())
-		cols = self.field2cols(fields)
-		if self.columns.isin(cols).any():
-			out[self.index] = self[cols].pkisin(values).any(axis='columns')
-			out[self._obj[cols].mask(self[cols].pkisin(['-1','-3']), pd.NA).isna().all(axis='columns')] = pd.NA
-		logger.debug(f"findinfield: Found = {out.to_dict()}.")
+		mymask = self[self.field2cols(fields)].pkisin(['-1','-3'])
+		if instances is not None:
+			df = self[self.field2cols(fields)]
+			mymask = mymask | ~pd.DataFrame([pd.Series(df.columns, index=df.columns).str.contains(f"_{'_|_'.join(i)}_") for i in instances], index=instances.index)
+		if mask is not None:
+			mymask = mymask | mask
+		out = super().findinfield(fields=fields, values=values, *args, mask=mymask)
 		return out
 
 	def findinterpolated(self, field, other, values):
@@ -112,8 +121,4 @@ class UKBioBank(Phenotype):
 		out = out.mask(out.isin([-1,-3,'-1','-3']), other=pd.NA).dropna(axis='columns', how='all')
 		logger.debug(f"findinterpolated: field={field}; other={other}; values={values}; return={out.to_dict()}")
 		return out
-
-	def findfield(self, fields):
-		"""Return any and all values in a given field."""
-		return self._obj[self.field2cols(fields)]
 

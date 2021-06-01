@@ -62,6 +62,15 @@ Comma separated list of columns with phenotypes.
 
 
 #
+# -%  For TextFile  %-
+
+csv = """Sets output to comma-separated values.
+"""
+
+tsv = """Sets output to tab-separated values.
+"""
+
+#
 # -%  For UKBioBank  %-
 
 datafields = """
@@ -103,7 +112,7 @@ Used to set typical age of onset for type 2 diabetes.
 """
 
 inciinterval = """
-Output incidence as intervals.
+Give incidence as intervals of time. <TIME_STR> should be a timeunit or a number followed by timeunit (eg "day" or "5 days"). Suggested units: day, week, month and year.
 """
 
 prevstyles = """

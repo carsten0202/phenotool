@@ -7,7 +7,7 @@
 #       Maybe a function to dig up most recent annotation for a given application
 #               ie you'd supply an application nunmber rather than a file?
 
-__version__ = """0.3.0"""
+__version__ = """0.4.0"""
 
 import click
 import logging
@@ -27,6 +27,7 @@ from ukbiobank.ukbiobank import UKBioBank
 @click.group(chain=True, invoke_without_command=True, no_args_is_help=True)
 @click.option('-d', '--datafields', type=CSV(), default="", help=OPTIONS.datafields)
 @click.option('-i', '--instances', type=CSV(), help=OPTIONS.instances)
+@click.option('--log', default="warning", show_default=True, help=OPTIONS.log)
 @click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
 @click.option('-v', '--values', default=".", help=OPTIONS.values)
 @click.version_option(version=__version__)
@@ -50,12 +51,13 @@ https://biobank.ndph.ox.ac.uk/showcase/search.cgi
 # 22001-0.0       488264  Categorical (single)    Genetic sex; Uses data-coding 9
 
 	# ensure that ctx.obj exists and is a dict
+	try: log_num = getattr(logging, log.upper())
+	except AttributeError:
+		raise ValueError(f"Invalid log level: '{log}'")
+	logging.basicConfig(level=log_num)
 	ctx.ensure_object(dict)
-
 	if instances:
-#		sys.exit("Sorry, Instances is not implemented yet.")
 		datafields = [f"{df}\D{inst}" for df in datafields for inst in instances]
-
 	ctx.obj['phenovars'] = datafields
 	ctx.obj['samples'] = samples
 	ctx.obj['values'] = values
@@ -76,7 +78,7 @@ def process_pipeline(ctx, processors, datafields, instances, samples, values):
 # -%  Add Command on External Commands (Chained Versions)  %-
 
 # CSV output command (Chained version)
-ukbiobank.add_command(Phenotool.csv_chain)
+ukbiobank.add_command(Phenotool.textfile_chain)
 
 # Eastwood Incidence Command (UKBioBank Version)
 ukbiobank.add_command(Eastwood.incidence_ukb)

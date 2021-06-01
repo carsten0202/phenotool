@@ -45,15 +45,18 @@ class Eastwood():
 	"""Implements a Diabetes classification based on Eastwood2016."""
 
 	# Define our categories
-	Negative   = "Diabetes_Unlikely"
-	T1High     = "Probable_Type1"
-	T2High     = "Probable_Type2"
-	T1Moderate = "Possible_Type1"
-	T2Moderate = "Possible_Type2"
-	GDModerate = "Possible_Gestational"
+	CategoriesDM = {
+	    'Negative'   : "Diabetes_Unlikely",
+	    'T1High'     : "Probable_Type1",
+	    'T2High'     : "Probable_Type2",
+	    'T1Moderate' : "Possible_Type1",
+	    'T2Moderate' : "Possible_Type2",
+	    'GDModerate' : "Possible_Gestational",
+	}
 
-	# UKB Baseline date
-	UKBbaseline = pd.to_datetime("2010-07-01")
+	# UKB base date
+	UKBbaseline = pd.to_datetime("2010-08-01")
+	UKBioFields = ['41270', '41280']
 
 	def __init__(self, pheno, baseline=None, datediag=None, **kwargs):
 		"""Prevalence and Incidence based on the Eastwood2016 paper."""
@@ -63,6 +66,8 @@ class Eastwood():
 		#		Will make assessment critical, since data could be missing (and user will need to provide much information...)
 
 		# Initialize attributes
+		for (k,v) in Eastwood.CategoriesDM.items():
+			setattr(self, k, v)
 		self.baseline = baseline
 		self.dm = pd.DataFrame(index=pheno.index, dtype='boolean')
 		self._incidence = pd.Series(
@@ -78,7 +83,7 @@ class Eastwood():
 		    name="Prevalence",
 		) # This guy is a frozen init; actual prevalence is returned through a property getter
 
-		# Incidence playground
+		# Needed for both Incidence and Prevalence
 		self.dm['date_t1dm_ip']    = datefirst(pheno.findinterpolated('41280', '41270', ['E10' + str(i) for i in range(10)]), axis='columns')
 		self.dm['date_t2dm_ip']    = datefirst(pheno.findinterpolated('41280', '41270', ['E11' + str(i) for i in range(10)]), axis='columns')
 		self.dm['date_otherdm_ip'] = datefirst(pheno.findinterpolated('41280', '41270', ['E13' + str(i) for i in range(10)]), axis='columns')
@@ -102,8 +107,8 @@ class Eastwood():
 		If a parameter matches all or none of the subjects?
 		Check that baseline date is valid. For prevalence it should be UKB baseline or later. (what if data are not UKB?)
 		"""
-		logger.debug(f"validate: dm.columns = {self.dm.columns}")
-		logger.debug(f"validate: dm.dtypes  = {self.dm.dtypes}")
+		logger.debug(f"validate: dm.columns = {self.dm.columns.to_list()}")
+		logger.debug(f"validate: dm.dtypes  = {self.dm.dtypes.to_list()}")
 
 	@property
 	def baseline(self):
@@ -121,93 +126,21 @@ class Eastwood():
 #
 # --%%  DEFINE: Incidence class from the Eastwood2016 paper.  %%--
 
-class Incidence(Eastwood):
-	"""Implements incidence algorithm 'B' from Eastwood2016 paper (See Fig 3 in paper).
-	Only implements algorithm B since A requires CPRD data not available to us."""
-
-	# UKB End date
-	UKBenddate = pd.Timestamp.max
-
-	def __init__(self, *args, enddate=None, interval=None, **kwargs):
-		"""Init the Incidence object."""
-		super().__init__(*args, **kwargs)
-		self.enddate = enddate
-		self.interval = interval
-
-	@property
-	def enddate(self):
-		"""Getter for enddate. Needed for the setter."""
-		return self._enddate
-
-	@enddate.setter
-	def enddate(self, value):
-		"""Enddate Setter. Ensure that enddate is a datetime object."""
-		if value is None:
-			self._enddate = self.UKBenddate
-		self._enddate = value if isinstance(value, datetime) else pd.to_datetime(value)
-
-	@property
-	def interval(self):
-		"""Getter for interval. Needed for the setter."""
-		return self._interval
-
-	@interval.setter
-	def interval(self, value):
-		"""Interval Setter: Ensure that interval is a timedelta object."""
-		if value is None:
-			self._interval = None
-		else:
-			self._interval = pd.Timedelta(value)
-
-	@property
-	def anydm(self):
-		"""Incidence of Type-1 + Type-2 + Unspecified Diabetes Mellitus."""
-		incidence = self._incidence[self.dm.index]
-		x = pkall(pd.concat([self.dm['date_anydm_ip'] > self.baseline, self.dm['date_anydm_ip'] < self.enddate], axis='columns'), axis='columns')
-		incidence[x] = self.dm.loc[x, 'date_anydm_ip']
-		logger.info(f"Incidence Any DM: {x.sum()} subjects with Any Diabets diagnosis data.")
-		if self.interval:
-			incidence = (incidence - self.baseline).floordiv(self.interval) + 1
-		return incidence[self.dm.index]
-
-	@property
-	def t1dm(self):
-		"""Incidence of Type-1 Diabetes Mellitus."""
-		incidence = self._incidence[self.dm.index]
-		x = pkall(pd.concat([self.dm['date_t1dm_ip'] > self.baseline, self.dm['date_t1dm_ip'] < self.enddate], axis='columns'), axis='columns')
-		incidence[x] = self.dm.loc[x, 'date_t1dm_ip']
-		logger.info(f"Incidence Type-1 DM: {x.sum()} subjects with Type-1 DM diagnosis data.")
-		if self.interval:
-			incidence = (incidence - self.baseline).floordiv(self.interval) + 1
-		return incidence[self.dm.index]
-
-	@property
-	def t2dm(self):
-		"""Incidence of Type-2 Diabetes Mellitus."""
-		incidence = self._incidence[self.dm.index]
-		x = pkall(pd.concat([self.dm['date_t2dm_ip'] > self.baseline, self.dm['date_t2dm_ip'] < self.enddate], axis='columns'), axis='columns')
-		incidence[x] = self.dm.loc[x, 'date_t2dm_ip']
-		logger.info(f"Incidence Type-2 DM: {x.sum()} subjects with Type-2 DM diagnosis data.")
-		if self.interval:
-			incidence = (incidence - self.baseline).floordiv(self.interval) + 1
-		return incidence[self.dm.index]
-
-
-
-
-###########################################################
-#
-# --%%  DEFINE: Incidence class from the Eastwood2016 paper.  %%--
-
 class Prevalence(Eastwood):
 	""""Implements prevalence algorithm 'A+B+C' from Eastwood2016 paper (See Fig 2 in paper).
 
 	The algorithm is slightly modified from the original in that the baseline date is user-adjustable and
 	in-patient data prior to baseline are considered.
 	"""
-	styles = ['eastwood','binary']
+	styles = ["Eastwood", 'T1D', 'T2D']
 	binaryNegative = 0
 	binaryPositive = 1
+	binaryOther = pd.NA
+
+	UKBstartdate = pd.to_datetime("2006-01-01")
+	UKBioFields = Eastwood.UKBioFields + ['53', '2443', '2976', '2986', '4041', '6153', '6177', '20002', '20003', '20009', '21000']
+
+	DEBUGsubject = '1000863'
 
 	def __init__(self, pheno, *args, agediag=None, ethnicity=None, high=None, moderate=None, style='Eastwood', treatments=None, **kwargs):
 		"""Based on the Eastwood2016 paper.
@@ -216,14 +149,12 @@ class Prevalence(Eastwood):
 		"""
 		super().__init__(pheno, *args, **kwargs)
 		self.style = style
-		self.tr2binary = {
-		    self.Negative   : self.binaryNegative,
-		    self.T1High     : self.binaryPositive,
-		    self.T2High     : self.binaryPositive,
-		    self.T1Moderate : self.binaryPositive,
-		    self.T2Moderate : self.binaryPositive,
-		    self.GDModerate : self.binaryPositive,
-		}
+
+		instances = pd.Series(None, index=pheno.index, dtype='object')
+		df = pheno.findfield('53').astype('object')
+		for (i, s) in (df.astype("datetime64[ns]") <= self.baseline).iterrows():
+			instances[i] = df.columns[s].to_series().str.replace(r'f\d+_(\d+)_\d+', r'\1', regex=True).to_list()
+		logger.debug(f"Init: Identified instances = {instances.to_list()}")
 
 		# Fill dm with values - Main ethnic groups (NB: this makes some assumptions i.e. British is white, and does not include mixed, Chinese or other Asian)
 		self.dm.loc[pheno.findinfield('21000', ['1', '1001', '1002', '1003']), 'ethnic'] = 1 # White European
@@ -234,77 +165,98 @@ class Prevalence(Eastwood):
 		logger.info(f"Init: Ethnic breakdown = {dict(zip(['White European', 'South Asian', 'African Caribbean', 'Mixed or Other'], self.dm['ethnic'].value_counts().sort_index()))}.")
 
 		# Fill dm with values - Touchscreen
-		self.dm['gdmonly_sr'] = pkall(pd.concat([pheno.findinfield('4041','1'), pheno.sex == 'female'], axis='columns'), axis='columns')
+		self.dm['gdmonly_sr'] = pkall(pd.concat([pheno.findinfield('4041','1',instances), pheno.sex == 'female'], axis='columns'), axis='columns')
 		logger.info(f"Init: {self.dm['gdmonly_sr'].sum()} subjects with Gestational Diabetes from Touchscreen.")
+#		logger.debug(f"Init: Subject={self.DEBUGsubject} {self.dm.loc[self.DEBUGsubject,]}")
 
 		# Fill dm with values - Nurse Interview
-		self.dm['alldm_ni'] = pheno.findinfield('20002','1220')
+		self.dm['alldm_ni'] = pheno.findinfield('20002','1220',instances)
 		logger.info(f"Init: {self.dm['alldm_ni'].sum()} Subjects with any type DM from Nurse Interview.")
-		self.dm['gdm_ni'] = pkall(pd.concat([pheno.findinfield('20002','1221'), pheno.sex == 'female'], axis='columns'), axis='columns')
+		self.dm['gdm_ni'] = pkall(pd.concat([pheno.findinfield('20002','1221',instances), pheno.sex == 'female'], axis='columns'), axis='columns')
 		logger.info(f"Init: {self.dm['gdm_ni'].sum()} Subjects with Gestational DM from Nurse Interview.")
-		self.dm['t1dm_ni'] = pheno.findinfield('20002','1222')
+		self.dm['t1dm_ni'] = pheno.findinfield('20002','1222',instances)
 		logger.info(f"Init: {self.dm['t1dm_ni'].sum()} Subjects with Type 1 DM from Nurse Interview.")
-		self.dm['t2dm_ni'] = pheno.findinfield('20002','1223')
+		self.dm['t2dm_ni'] = pheno.findinfield('20002','1223',instances)
 		logger.info(f"Init: {self.dm['t2dm_ni'].sum()} Subjects with Type 2 DM from Nurse Interview.")
 		self.dm['anynsgt1t2_ni'] = pd.Series(self.dm[['alldm_ni', 'gdm_ni', 't1dm_ni', 't2dm_ni']].any(axis='columns'), dtype='boolean')
 		logger.info(f"Init: {self.dm['t2dm_ni'].sum()} Subjects with any DM from Nurse Interview.")
 
 		# Fill dm with values - Medication
-		self.dm['drug_ins_sr'] = pheno.findinfield(['6153','6177'],'3')
+		self.dm['drug_ins_sr'] = pheno.findinfield(['6153','6177'],'3',instances)
 		logger.info(f"Init: {self.dm['drug_ins_sr'].sum()} Subjects with Insulin, Medication from Touchscreen.")
-		self.dm['insat1yr'] = pheno.findinfield('2986', '1')
+		self.dm['insat1yr'] = pheno.findinfield('2986','1',instances)
 		logger.info(f"Init: {self.dm['insat1yr'].sum()} subjects with Insulin started within 1 yr of diagnosis from Touchscreen.")
-		self.dm['drug_ins_ni'] = pheno.findinfield('20003','1140883066')
+		self.dm['drug_ins_ni'] = pheno.findinfield('20003','1140883066',instances)
 		logger.info(f"Init: {self.dm['drug_ins_ni'].sum()} Subjects with Insulin Product, Medication from Nurse Interview.")
-		self.dm['drug_metf_ni'] = pheno.findinfield('20003',['1140884600','1140874686','1141189090'])
+		self.dm['drug_metf_ni'] = pheno.findinfield('20003',['1140884600','1140874686','1141189090'],instances)
 		logger.info(f"Init: {self.dm['drug_metf_ni'].sum()} Subjects with Metformin, Medication from Nurse Interview.")
 
 		Glitazones    = ['1141171646','1141171652','1141153254','1141177600','1141177606']
 		Meglitinides  = ['1141173882','1141173786','1141168660']
 		Sulfonylureas = ['1140874718','1140874744','1140874746','1141152590','1141156984','1140874646','1141157284','1140874652','1140874674','1140874728']
 		OtherOAD      = ['1140868902','1140868908','1140857508']
-		self.dm['drug_nonmetf_oad_ni'] = pheno.findinfield('20003', Glitazones + Meglitinides + Sulfonylureas + OtherOAD)
+		self.dm['drug_nonmetf_oad_ni'] = pheno.findinfield('20003', Glitazones + Meglitinides + Sulfonylureas + OtherOAD, instances)
 		logger.info(f"Init: {self.dm['drug_nonmetf_oad_ni'].sum()} Subjects with Non-metformin oral anti-diabetic drug, Medication from Nurse Interview.")
 
 		# Age at Diagnosis combined from TS and NI (Remember: .loc[] enforces index/column names so this works as intended)
-		self.dm['agedm_ts_or_ni'] = pheno.findfield('2976').mean(axis='columns')                        # Touchscreen - gestational DM
+		self.dm['agedm_ts_or_ni'] = pheno.findfield('2976_0').mean(axis='columns')                        # Touchscreen - gestational DM
 		self.dm['agediag_gdm_ni'] = pheno.findinterpolated('20009','20002','1220').mean(axis='columns') # Nurse interview - gestational DM
 		self.dm.loc[self.dm['alldm_ni'], 'agedm_ts_or_ni'] = pheno.findinterpolated('20009','20002','1220').mean(axis='columns') # Nurse interview - all DM
 		self.dm.loc[self.dm['gdm_ni'],   'agedm_ts_or_ni'] = self.dm.loc[self.dm['gdm_ni'], 'agediag_gdm_ni']                    # Nurse interview - gestational DM
 		self.dm.loc[self.dm['t1dm_ni'],  'agedm_ts_or_ni'] = pheno.findinterpolated('20009','20002','1222').mean(axis='columns') # Nurse interview - type 1 DM
 		self.dm.loc[self.dm['t2dm_ni'],  'agedm_ts_or_ni'] = pheno.findinterpolated('20009','20002','1223').mean(axis='columns') # Nurse interview - type 2 DM
 		logger.info(f"Init: {sum(self.dm['agedm_ts_or_ni'] > 0)} subjects with age at diagnosis.")
+		logger.debug(f"Init: Subject={self.DEBUGsubject} {self.dm.loc[self.DEBUGsubject,]}")
+
+		# Precalculate the prevalence
+		self.prevalence = self.prevalenceA()
+		self.prevalence = self[self._prevalence == self.T1Moderate].prevalenceB()
+		self.prevalence = self[self._prevalence == self.T2Moderate].prevalenceC()
 
 	@Eastwood.baseline.setter
 	def baseline(self, value):
 		"""Overrides setter to do some asserts."""
-		assert value >= self.UKBbaseline, f"Prevalence calculations on UKBiobank data isn't reliable for baselines prior to the UKBiobank baseline date ({self.UKBbaseline})."
+		assert value > self.UKBstartdate, f"Prevalence calculations on UKBiobank data are too unreliable for baselines prior to the UKBiobank start date ({self.UKBstartdate.date()})"
+		if value > self.UKBbaseline:
+			logger.warning(f"Prevalence calculations on UKBiobank data is somewhat unreliable for baselines prior to the UKBiobank end of assessment date ({self.UKBbaseline.date()}).")
 		self._baseline = value
 
 	@property
 	def prevalence(self):
 		"""Implements prevalence algorithm from Eastwood2016 paper (See Fig 2 in paper)."""
-		out = self.prevalenceA()
-		t1dm = out == self.T1Moderate
-		t2dm = out == self.T2Moderate
-		out[t1dm] = self[t1dm].prevalenceB()
-		out[t2dm] = self[t2dm].prevalenceC()
-		if self.style == 'binary':
+		out = self._prevalence
+		if self.styletr is not None:
 			logger.info(f"Converting output to style: {self.style}")
-			out = pd.Series(out.apply(lambda x: self.tr2binary.get(x)), dtype='category')
+			out = pd.Series(out.apply(self.styletr), dtype='category')
 		return out
+
+	@prevalence.setter
+	def prevalence(self, value):
+		"""Setter used to calculate the prevalence."""
+		if hasattr(value, 'index'):
+			self._prevalence[value.index] = value
+		else:
+			logger.error(f"Oops! You set prevalence to something fishy...")
 
 	@property
 	def style(self):
 		"""Return: self._style. Needed for setter."""
 		return self._style
 
+# Don't much like setting the translator here, but it's meaningless to change the style without changing the translator
+#	The clean way would be to make a style class. A thought for future update?
 	@style.setter
 	def style(self, value):
 		"""Assert value and set it to self._style if valid."""
 		value = value.lower()
-		assert value in self.styles, f"Unknown style value given. Supported styles include {self.styles}"
+		assert value in [s.lower() for s in self.styles], f"Given style {value} is unknown. Supported styles include {self.styles}"
 		self._style = value
+		if self.style == 'eastwood':
+			self.styletr = None
+		elif self.style == 't1d':
+			self.styletr = lambda x: self.binaryPositive if x in [self.T1Moderate, self.T1High] else (self.binaryNegative if x in [self.Negative] else self.binaryOther)
+		elif self.style == 't2d':
+			self.styletr = lambda x: self.binaryPositive if x in [self.T2Moderate, self.T2High] else (self.binaryNegative if x in [self.Negative] else self.binaryOther)
 
 	def prevalenceA(self):
 		"""Prevalence algorithm A - Distinguishes between diabetes presence/absence 
@@ -378,6 +330,7 @@ class Prevalence(Eastwood):
 		prevalence[x != True] = self.Negative
 		subjects_left[x != True] = False
 		logger.info(f"   Prevalence 1.1: {sum(x != True)} subjects assigned '{self.Negative}'; {subjects_left.sum()} subjects remaining.")
+		logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
 
 		# Fig 2 (Flowchart): 1.2
 		self.dm['anydmrx_ni_sr'] = self.dm[['drug_ins_ni', 'drug_metf_ni', 'drug_nonmetf_oad_ni', 'drug_ins_sr']].any(axis='columns')
@@ -394,6 +347,7 @@ class Prevalence(Eastwood):
 		prevalence[x] = self.GDModerate
 		subjects_left[x] = False
 		logger.info(f"   Prevalence 1.2: {x.sum()} subjects asigned '{self.GDModerate}'; {subjects_left.sum()} subjects remaining.")
+		logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
 
 		# Fig 2 (Flowchart): 1.3
 		x = self.dm['drug_nonmetf_oad_ni']
@@ -401,6 +355,7 @@ class Prevalence(Eastwood):
 		prevalence[x] = self.T2Moderate
 		subjects_left[x] = False
 		logger.info(f"   Prevalence 1.3: {x.sum()} subjects asigned '{self.T2Moderate}'; {subjects_left.sum()} subjects remaining.")
+		logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
 
 		# Fig 2 (Flowchart): 1.4
 		x = pd.concat([
@@ -411,6 +366,7 @@ class Prevalence(Eastwood):
 		prevalence[x] = self.T2Moderate
 		subjects_left[x] = False
 		logger.info(f"   Prevalence 1.4: {x.sum()} subjects asigned '{self.T2Moderate }'; {subjects_left.sum()} subjects remaining.")
+		logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
 
 		# Fig 2 (Flowchart): 1.5
 		x = self.dm[['drug_ins_sr', 'drug_ins_ni', 'insat1yr', 't1dm_ni']].any(axis='columns')
@@ -420,10 +376,10 @@ class Prevalence(Eastwood):
 		subjects_left[x] = False
 		prevalence.loc[subjects_left != False] = self.T2Moderate
 		logger.info(f"   Prevalence 1.5: {sum(subjects_left != False)} subjects asigned '{self.T2Moderate}'; {x.sum()} subjects remaining.")
+		logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
 		prevalence[x] = self.T1Moderate
 		logger.info(f"Prevalence Algorithm A finished: Remaining {x.sum()} subjects asigned '{self.T1Moderate}'.")
 
-		# Report and return
 		return prevalence[self.dm.index]
 
 	def prevalenceB(self):
@@ -455,16 +411,23 @@ class Prevalence(Eastwood):
 		prevalence[x] = self.T1High
 		subjects_left[x] = False
 		logger.info(f"   Prevalence 2.1: {x.sum()} subjects asigned '{self.T1High}'; {sum(subjects_left != False)} subjects remaining.")
+		try: logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
+		except KeyError:
+			logger.debug(f"     Testsubject: '{self.DEBUGsubject}' not in Algorithm B.")
 
 		# Fig 2 (Flowchart): 2.2
 		x = pkall(pd.concat([self.dm['insat1yr'], self.dm[['drug_ins_sr', 'drug_ins_ni']].any(axis='columns')], axis='columns'), axis='columns')
 		x = pkall(pd.concat([x, subjects_left], axis='columns'), axis='columns')
 		prevalence[x] = self.T1High
 		subjects_left[x] = False
+
 		logger.info(f"   Prevalence 2.2: {x.sum()} subjects asigned '{self.T1High}'; {subjects_left.sum()} subjects remaining.")
+		try: logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
+		except KeyError:
+			logger.debug(f"     Testsubject: '{self.DEBUGsubject}' not in Algorithm B.")
+
 		prevalence[subjects_left] = self.T1Moderate
 		logger.info(f"Prevalence Algorithm B finished: Remaining {subjects_left.sum()} subjects asigned '{self.T1Moderate}'.")
-
 		return prevalence[self.dm.index]
 
 	def prevalenceC(self):
@@ -523,6 +486,9 @@ class Prevalence(Eastwood):
 		                     self.dm[['drug_ins_sr', 'drug_ins_ni', 'drug_nonmetf_oad_ni']].any(axis='columns') != True], axis='columns'),
 		          axis='columns')
 		logger.info(f"   Prevalence 3.1: {x.sum()} subjects directed to 3.2; {x.size - x.sum()} subjects directed to 3.3.")
+		try: logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
+		except KeyError:
+			logger.debug(f"     Testsubject: '{self.DEBUGsubject}' not in Algorithm C.")
 
 		# Fig 2 (Flowchart): 3.2
 		y = pkall(pd.concat([x, self.dm['anynsgt1t2_ni'] != True], axis='columns'), axis='columns')
@@ -531,6 +497,9 @@ class Prevalence(Eastwood):
 		prevalence[y] = self.Negative
 		logger.info(f"   Prevalence 3.2: {y.sum()} subjects asigned '{self.Negative}'; remaining {x.sum() - y.sum()} subjects directed to 3.3.")
 		subjects_left[y] = False
+		try: logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
+		except KeyError:
+			logger.debug(f"     Testsubject: '{self.DEBUGsubject}' not in Algorithm C.")
 
 		# Fig 2 (Flowchart): 3.3
 		x = self.dm['drug_nonmetf_oad_ni']
@@ -540,6 +509,9 @@ class Prevalence(Eastwood):
 		prevalence[x] = self.T2High
 		subjects_left[x] = False
 		logger.info(f"   Prevalence 3.3: {x.sum()} subjects asigned '{self.T2High}'; {subjects_left.sum()} subjects remaining.")
+		try: logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
+		except KeyError:
+			logger.debug(f"     Testsubject: '{self.DEBUGsubject}' not in Algorithm C.")
 
 		# Fig 2 (Flowchart): 3.4
 		x = self.dm[['drug_ins_sr', 'drug_ins_ni']].any(axis='columns') != True
@@ -547,16 +519,119 @@ class Prevalence(Eastwood):
 		prevalence[x] = self.T2High
 		subjects_left[x] = False
 		logger.info(f"   Prevalence 3.4: {x.sum()} subjects asigned '{self.T2High}'; {subjects_left.sum()} subjects remaining.")
+		try: logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
+		except KeyError:
+			logger.debug(f"     Testsubject: '{self.DEBUGsubject}' not in Algorithm C.")
 
 		# Fig 2 (Flowchart): 3.5
 		x = self.dm['t1dm_ni']
 		x = pkall(pd.concat([x, subjects_left], axis='columns'), axis='columns')
 		subjects_left[x] = False
 		prevalence[subjects_left] = self.T2Moderate
+
 		logger.info(f"   Prevalence 3.5: {subjects_left.sum()} subjects asigned '{self.T2Moderate}'; {x.sum()} subjects remaining.")
+		try: logger.debug(f"     Testsubject: {self.DEBUGsubject} = '{prevalence[self.DEBUGsubject]}'")
+		except KeyError:
+			logger.debug(f"     Testsubject: '{self.DEBUGsubject}' not in Algorithm C.")
+
 		prevalence[x] = self.T1High
 		logger.info(f"Prevalence Algorithm C Finished: Remaining {x.sum()} subjects asigned '{self.T1High}'.")
-
 		return prevalence[self.dm.index]
 
+	def to_incidence(self, *args, **kwargs):
+		"""Convert to Incidence class (with equal args, like baseline)."""
+		out = Incidence(*args, prev=self, **kwargs)
+		return out
+
+
+
+###########################################################
+#
+# --%%  DEFINE: Incidence class from the Eastwood2016 paper.  %%--
+
+class Incidence(Prevalence):
+	"""Implements incidence algorithm 'B' from Eastwood2016 paper (See Fig 3 in paper).
+	Only implements algorithm B since A requires CPRD data not available to us."""
+
+	# UKB End date
+	UKBenddate = pd.Timestamp.max
+
+	def __init__(self, *args, enddate=None, interval=None, prev=None, **kwargs):
+		"""Init the Incidence object."""
+		if prev is None:
+			super().__init__(*args, **kwargs)
+		else:
+			self = copy.deepcopy(prev)
+		self.enddate = enddate
+		self.interval = interval
+		self.dm['prevalent'] = self._prevalence.isin([self.T1High, self.T2High])
+		logger.info(f"Incicence.init: {self.dm['prevalent'].sum()} subjects with DM diagnosis prior to baseline ({self.baseline.date()})")
+
+	@Eastwood.baseline.setter
+	def baseline(self, value):
+		"""Overrides setter to do some asserts."""
+		assert value >= self.UKBbaseline, f"Incidence calculations on UKBiobank data are too unreliable for baselines prior to the UKBiobank end of assessment date ({self.UKBbaseline.date()})."
+		self._baseline = value
+
+	@property
+	def enddate(self):
+		"""Getter for enddate. Needed for the setter."""
+		return self._enddate
+
+	@enddate.setter
+	def enddate(self, value):
+		"""Enddate Setter. Ensure that enddate is a datetime object."""
+		if value is None:
+			self._enddate = self.UKBenddate
+		self._enddate = value if isinstance(value, datetime) else pd.to_datetime(value)
+
+	@property
+	def interval(self):
+		"""Getter for interval. Needed for the setter."""
+		return self._interval
+
+	@interval.setter
+	def interval(self, value):
+		"""Interval Setter: Ensure that interval is a timedelta object."""
+		if value is None:
+			self._interval = None
+		else:
+			self._interval = pd.Timedelta(value)
+
+	@property
+	def anydm(self):
+		"""Incidence of Type-1 + Type-2 + Unspecified Diabetes Mellitus."""
+		incidence = self._incidence[self.dm.index]
+		x = pkall(pd.concat([~self.dm['prevalent'], self.dm['date_anydm_ip'] > self.baseline, self.dm['date_anydm_ip'] < self.enddate], axis='columns'), axis='columns')
+		incidence[x] = self.dm.loc[x, 'date_anydm_ip']
+		logger.info(f"Incidence Any DM: {x.sum()} subjects with Any Diabets diagnosis data.")
+		if self.interval:
+			incidence = (incidence - self.baseline).floordiv(self.interval) + 1
+		return incidence[self.dm.index]
+
+	@property
+	def t1dm(self):
+		"""Incidence of Type-1 Diabetes Mellitus."""
+		incidence = self._incidence[self.dm.index]
+		x = pkall(pd.concat([~self.dm['prevalent'], self.dm['date_t1dm_ip'] > self.baseline, self.dm['date_t1dm_ip'] < self.enddate], axis='columns'), axis='columns')
+		incidence[x] = self.dm.loc[x, 'date_t1dm_ip']
+		logger.info(f"Incidence Type-1 DM: {x.sum()} subjects with Type-1 DM diagnosis data.")
+		if self.interval:
+			incidence = (incidence - self.baseline).floordiv(self.interval) + 1
+		return incidence[self.dm.index]
+
+	@property
+	def t2dm(self):
+		"""Incidence of Type-2 Diabetes Mellitus."""
+		incidence = self._incidence[self.dm.index]
+		x = pkall(pd.concat([~self.dm['prevalent'], self.dm['date_t2dm_ip'] > self.baseline, self.dm['date_t2dm_ip'] < self.enddate], axis='columns'), axis='columns')
+		incidence[x] = self.dm.loc[x, 'date_t2dm_ip']
+		logger.info(f"Incidence Type-2 DM: {x.sum()} subjects with Type-2 DM diagnosis data.")
+		if self.interval:
+			incidence = (incidence - self.baseline).floordiv(self.interval) + 1
+		return incidence[self.dm.index]
+
+	def to_incidence(self, *args, **kwargs):
+		"""Dummy converter."""
+		return self
 

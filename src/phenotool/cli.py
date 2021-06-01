@@ -20,28 +20,6 @@ import pklib.pkcsv as csv
 # --%%  Chained Output Commands (Those which must be last)  %%--
 
 #
-# -%  Plain CSV Command; Chained Version  %-
-
-@click.command(name="csv", no_args_is_help=True)
-@click.pass_context
-@click.argument('files', nargs=-1, type=gzFile(mode='rb'))
-def csv_chain(ctx, files):
-	"""Output as CSV."""
-	from pkpheno.pkpheno import Phenotype
-	ctx.obj['constructor'] = ctx.obj.get('constructor', Phenotype)
-	ctx.obj['pheno'] = ctx.obj['constructor'](csv.DictReader(files[0]), phenovars=ctx.obj['phenovars'], samples=ctx.obj['samples'])
-	for fileobj in files[1:]:
-		pheno_new = ctx.obj['constructor'](csv.DictReader(fileobj), phenovars=ctx.obj['phenovars'], samples=ctx.obj['samples'])
-		ctx.obj['pheno'] = ctx.obj['pheno'].combine_first(pheno_new)
-	def processor(pheno):
-		if ctx.obj.get('to_be_deleted'):
-			pheno = pheno.drop(ctx.obj['to_be_deleted'], axis='columns')
-		pheno.write()
-	return processor
-
-
-
-#
 # -%  Plink Command; Chained Version  %-
 
 @click.command(name="plink", no_args_is_help=True)
@@ -180,6 +158,40 @@ https://jmarchini.org/file-formats/
 	if samples:
 		ctx.obj['samples'] = list(dict.fromkeys(ctx.obj.get('samples', []) + samples))
 	ctx.obj['constructor'] = ctx.obj.get('constructor', Snptest)
+	ctx.obj['pheno'] = ctx.obj['constructor'](csv.DictReader(files[0]), phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
+	for fileobj in files[1:]:
+		pheno_new = ctx.obj['constructor'](csv.DictReader(fileobj), phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
+		ctx.obj['pheno'] = ctx.obj['pheno'].combine_first(pheno_new)
+	return processor
+
+
+
+#
+# -%  Plain Text File Command; Chained Version  %-
+
+@click.command(name="textfile", no_args_is_help=True)
+@click.pass_context
+@click.argument('files', nargs=-1, type=gzFile(mode='rb'))
+@click.option('-c', '--columns', type=CSV(), default="", help=OPTIONS.columns)
+@click.option('--csv', 'formatflag', flag_value='csv', default=True, help=OPTIONS.csv)
+@click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
+@click.option('--tsv', 'formatflag', flag_value='tsv', help=OPTIONS.tsv)
+def textfile_chain(ctx, files, columns, formatflag, samples):
+	"""Output phenotypes in customizable text format."""
+	def processor(pheno):
+		if ctx.obj.get('to_be_deleted'):
+			pheno = pheno.drop(ctx.obj['to_be_deleted'], axis='columns')
+		pheno = pheno.to_textfile()
+		pheno.write()
+		return pheno
+
+	assert formatflag == 'csv', "Sorry, textfile currently only supports csv output. This will change in future versions."
+
+	ctx.obj['phenovars'] = list(dict.fromkeys(ctx.obj.get('phenovars', []) + columns)) # Clever little trick to get unique list
+	if samples:
+		ctx.obj['samples'] = list(dict.fromkeys(ctx.obj.get('samples', []) + samples))
+	from pkpheno import TextFile
+	ctx.obj['constructor'] = ctx.obj.get('constructor', TextFile)
 	ctx.obj['pheno'] = ctx.obj['constructor'](csv.DictReader(files[0]), phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
 	for fileobj in files[1:]:
 		pheno_new = ctx.obj['constructor'](csv.DictReader(fileobj), phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
