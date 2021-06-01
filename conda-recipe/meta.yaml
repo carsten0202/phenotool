@@ -8,7 +8,9 @@ source:
 
 build:
   entry_points:
+    - incidence = eastwood.cli:incidence
     - phenotool = phenotool.phenotool:main
+    - prevalence = eastwood.cli:prevalence
     - ukbiobank = ukbiobank.ukbiobank:main
 
 requirements:
