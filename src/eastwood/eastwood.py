@@ -27,11 +27,25 @@ def pkany():
 	"""This function is necessary to address bugs with skipna=False when that behavior is needed."""
 	sys.exit("Not implemented yet")
 
-def datefirst(df, axis='index'):
-	"""Find the earliest occurrance in a pd.Series/pd.DataFrame of dates. Can be applied over a specific axis"""
-	out = pd.Series(name="datefirst", dtype='datetime64[ns]', index=df.index)
-	for row in df.dropna(axis='index', how='all').itertuples():
-		out[row[0]] = pd.to_datetime(row[1:]).min()
+def datefirst(df, *args, **kwargs):
+	"""Find the earliest occurrance of dates in a pd.DataFrame applied over 'axis'.
+
+	df: A Pandas Series or DataFrame.
+	axis: The axis to search across.
+	Return: A pd.Series with the earliest dates."""
+	mydf = df[isDateFirst(df, *args, **kwargs)]
+	out = mydf.apply(lambda s: pd.NaT if s.dropna().empty else s.dropna()[[0]].item(), *args, **kwargs)
+	out = out.apply(lambda x: pd.to_datetime(x) if isinstance(x, str) else x)
+	return out
+
+def isDateFirst(df, *args, **kwargs):
+	"""Find the earlisest occurrance of dates in a pd.DataFrame applied over 'axis'.
+
+	df: A Pandas Series or DataFrame.
+	axis: The axis to search across.
+	Return: pd.DataFrame with bools."""
+	df = df.applymap(lambda x: x.end_time.date() if isinstance(x, type(pd.Period('2008'))) else x)
+	out = df.apply(lambda x: pd.to_datetime(x) == pd.to_datetime(x).min(), *args, **kwargs)
 	return out
 
 
@@ -58,7 +72,7 @@ class Eastwood():
 	UKBbaseline = pd.to_datetime("2010-08-01")
 	UKBioFields = ['41270', '41280']
 
-	def __init__(self, pheno, baseline=None, datediag=None, **kwargs):
+	def __init__(self, pheno, baseline=None, **kwargs):
 		"""Prevalence and Incidence based on the Eastwood2016 paper."""
 
 		# Start with some assessments. Do we have the data?
@@ -105,7 +119,7 @@ class Eastwood():
 		"""Check stuff. But what?
 
 		If a parameter matches all or none of the subjects?
-		Check that baseline date is valid. For prevalence it should be UKB baseline or later. (what if data are not UKB?)
+		Checks on baseline are done by its setter function, so not needed here. (what if data are not UKB?)
 		"""
 		logger.debug(f"validate: dm.columns = {self.dm.columns.to_list()}")
 		logger.debug(f"validate: dm.dtypes  = {self.dm.dtypes.to_list()}")
@@ -138,7 +152,7 @@ class Prevalence(Eastwood):
 	binaryOther = pd.NA
 
 	UKBstartdate = pd.to_datetime("2006-01-01")
-	UKBioFields = Eastwood.UKBioFields + ['53', '2443', '2976', '2986', '4041', '6153', '6177', '20002', '20003', '20009', '21000']
+	UKBioFields = Eastwood.UKBioFields + ['53', '2443', '2976', '2986', '4041', '6153', '6177', '20002', '20003', '20008', '20009', '21000']
 
 	DEBUGsubject = '1000863'
 
@@ -167,7 +181,6 @@ class Prevalence(Eastwood):
 		# Fill dm with values - Touchscreen
 		self.dm['gdmonly_sr'] = pkall(pd.concat([pheno.findinfield('4041','1',instances), pheno.sex == 'female'], axis='columns'), axis='columns')
 		logger.info(f"Init: {self.dm['gdmonly_sr'].sum()} subjects with Gestational Diabetes from Touchscreen.")
-#		logger.debug(f"Init: Subject={self.DEBUGsubject} {self.dm.loc[self.DEBUGsubject,]}")
 
 		# Fill dm with values - Nurse Interview
 		self.dm['alldm_ni'] = pheno.findinfield('20002','1220',instances)
@@ -199,14 +212,16 @@ class Prevalence(Eastwood):
 		logger.info(f"Init: {self.dm['drug_nonmetf_oad_ni'].sum()} Subjects with Non-metformin oral anti-diabetic drug, Medication from Nurse Interview.")
 
 		# Age at Diagnosis combined from TS and NI (Remember: .loc[] enforces index/column names so this works as intended)
-		self.dm['agedm_ts_or_ni'] = pheno.findfield('2976_0').mean(axis='columns')                        # Touchscreen - gestational DM
-		self.dm['agediag_gdm_ni'] = pheno.findinterpolated('20009','20002','1220').mean(axis='columns') # Nurse interview - gestational DM
+		self.dm['agedm_ts_or_ni'] = pheno.findfield('2976_0').mean(axis='columns')                                               # Touchscreen - gestational DM
+		self.dm['agediag_gdm_ni'] = pheno.findinterpolated('20009','20002','1220').mean(axis='columns')                          # Nurse interview - gestational DM
 		self.dm.loc[self.dm['alldm_ni'], 'agedm_ts_or_ni'] = pheno.findinterpolated('20009','20002','1220').mean(axis='columns') # Nurse interview - all DM
 		self.dm.loc[self.dm['gdm_ni'],   'agedm_ts_or_ni'] = self.dm.loc[self.dm['gdm_ni'], 'agediag_gdm_ni']                    # Nurse interview - gestational DM
 		self.dm.loc[self.dm['t1dm_ni'],  'agedm_ts_or_ni'] = pheno.findinterpolated('20009','20002','1222').mean(axis='columns') # Nurse interview - type 1 DM
 		self.dm.loc[self.dm['t2dm_ni'],  'agedm_ts_or_ni'] = pheno.findinterpolated('20009','20002','1223').mean(axis='columns') # Nurse interview - type 2 DM
 		logger.info(f"Init: {sum(self.dm['agedm_ts_or_ni'] > 0)} subjects with age at diagnosis.")
-#		logger.debug(f"Init: Subject={self.DEBUGsubject} {self.dm.loc[self.DEBUGsubject,]}")
+
+		# Register the date of the first diagnosis
+		self.dm['date_anydm_ni'] = datefirst(pheno.dc13toDate('20008').findinterpolated('20008', '20002', '1220'), axis='columns')
 
 		# Precalculate the prevalence
 		self.prevalence = self.prevalenceA()
@@ -217,8 +232,8 @@ class Prevalence(Eastwood):
 	def baseline(self, value):
 		"""Overrides setter to do some asserts."""
 		assert value > self.UKBstartdate, f"Prevalence calculations on UKBiobank data are too unreliable for baselines prior to the UKBiobank start date ({self.UKBstartdate.date()})"
-		if value > self.UKBbaseline:
-			logger.warning(f"Prevalence calculations on UKBiobank data is somewhat unreliable for baselines prior to the UKBiobank end of assessment date ({self.UKBbaseline.date()}).")
+		if value < self.UKBbaseline:
+			logger.warning(f"Prevalence calculations on UKBiobank data should be considered spurious for baselines prior to the UKBiobank end of assessment date ({self.UKBbaseline.date()}).")
 		self._baseline = value
 
 	@property
@@ -257,6 +272,14 @@ class Prevalence(Eastwood):
 			self.styletr = lambda x: self.binaryPositive if x in [self.T1Moderate, self.T1High] else (self.binaryNegative if x in [self.Negative] else self.binaryOther)
 		elif self.style == 't2d':
 			self.styletr = lambda x: self.binaryPositive if x in [self.T2Moderate, self.T2High] else (self.binaryNegative if x in [self.Negative] else self.binaryOther)
+
+	def datediag(self):
+		"""Report the date when the 'prevalent disease' was diagnosed. Returns pd.Series."""
+		# UNDER CONSTRUCTION
+		date = datefirst(self.dm[['date_anydm_ni', 'date_anydm_ip']], axis='columns')
+		date = date.apply(lambda x: x.date() if isinstance(x, type(pd.to_datetime("2000-1-1"))) else x)
+		logger.debug(f"datediag: {date.to_list()}")
+		return date
 
 	def prevalenceA(self):
 		"""Prevalence algorithm A - Distinguishes between diabetes presence/absence 

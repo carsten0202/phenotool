@@ -72,6 +72,11 @@ class Phenotype:
 		out._obj = out._obj[key]
 		return out
 
+	def __repr__(self):
+		"""Use the _obj's __repr__ function instead; ie show the pandas object."""
+		return self._obj.__repr__()
+
+
 	def __setitem__(self, key, value):
 		"""Redirects index-based assignment operations to the _obj attribute."""
 		self._obj[key] = value
@@ -88,23 +93,28 @@ class Phenotype:
 		# We should check the SEX column, if it is there... And we need to estimate 0,1,2 errors (when 1 cn mean both males (psam) and females (rvtest)).
 		# We should check that all columns have headers and that the headers are strings (numerical headers usually indicates a problem).
 		# We should check that there is a header (difficult...)
-		# Need to recognize R's one-header-name-short-stupid format
-		# Option to set the ID and a warning if it's not recognized
-		#	We actually need ways to specify custom names for all magic cols...
 		dup = self._obj.index.duplicated()
 		assert not dup.any(), f"One or more input files had duplicated primary identifiers ({self._obj.index[dup].unique().to_list()}). The primary identifiers must be unique within each input file."
 		if warn:
-			# Check for suspect values like 'NA' (Check for Inf?)
-			for allna in [s[1].isna().all() for s in self._obj.iterrows()]:
-				if allna:
-					# SHIT! These guy don't trgger properly if we have columns with auto-default values, like '0'...
-					warnings.warn("Dataset contains samples without any associated data; one or more rows will have only missing values.")
-					# We can add logging.warning('message') here for additional details.
-			for anyna, allna in [(s[1].isna().any(), s[1].isna().all()) for s in self._obj.iteritems()]:
-				if allna:
-					warnings.warn("Dataset contains phenotypes without any associated data; one or more columns will have only missing values.")
-				elif anyna:
-					logger.debug("The dataset contains one or more missing values.")
+			samples_notok = pd.Series(pd.NA * self.index.size, index=self.index)
+			columns_notok = pd.Series(pd.NA * len(self.columns), index=self.columns)
+			for name,row in self.df.iterrows():
+				if row.isna().all():
+					samples_notok[name] = name
+			samples_notok = samples_notok.dropna().to_list()
+			for name,col in self.df.iteritems():
+				columns_notok[name] = name if col.isna().all() else pd.NA
+			for i,sample in enumerate(samples_notok):
+				if i == 0:
+					first = samples_notok[0:3] + ['...'] if len(samples_notok) > 3 else samples_notok
+					logger.warning(f"Dataset contains {len(samples_notok)} sample(s) without any associated data {first}.")
+				logger.info(f"Sample '{sample}' has no associated data; all it's variables set to missing values.")
+			columns_notok = columns_notok.dropna().to_list()
+			for i,column in enumerate(columns_notok):
+				if i == 0:
+					first = columns_notok[0:3] + ['...'] if len(columns_notok) > 3 else columns_notok
+					logger.warning(f"Dataset contains {len(columns_notok)} phenotype(s) without any associated data {first}.")
+				logger.info(f"Phenotype '{column}' has no data associated with any subjects present in the data.")
 
 	@property
 	def colnames(self):
@@ -141,14 +151,6 @@ class Phenotype:
 		"""Synonym for self.index."""
 		return self.index
 
-	@property
-	def sex(self):
-		"""Returns the SEX in a systematic way (male/female) for querying."""
-		out = pd.Series(np.zeros(self._obj.index.size) + np.nan, name=self.mkey_sex, index=self._obj.index)
-		out[self[self.mkey_sex].pkisin(['1', 'M'])] = "male"
-		out[self[self.mkey_sex].pkisin(['2', 'F'])] = "female"
-		return out
-
 	@samples.setter
 	def samples(self, value):
 		"""Return: All specified samples in specified order."""
@@ -156,13 +158,20 @@ class Phenotype:
 		except Exception as ex:
 			sys.exit(f"{ex} in samples.setter...")
 
-#	@sex.setter
-#	def sex(self, value):
-#		"""Sets the sex column in error-robust way."""
-#		val = pd.Series(value, dtype="category", index=self.index)
-#		val = val.cat.rename_categories(dict(zip([2, 'F', 'f', 'FEMALE', 1, 'M', 'm', 'MALE'], ['female']*4 + ['male']*4)))
-#		logger.debug("{val}")
-#		self._obj[self.mkey_sex] = val
+	@property
+	def sex(self):
+		"""Returns the SEX in a systematic way (male/female or child-dependent) for querying."""
+		out = pd.Series(np.zeros(self._obj.index.size) + np.nan, name=self.mkey_sex, index=self._obj.index)
+		out[self[self.mkey_sex].pkisin(['1', 'M'])] = "male"
+		out[self[self.mkey_sex].pkisin(['2', 'F'])] = "female"
+		return out
+
+	@sex.setter
+	def sex(self, value):
+		"""Sets the sex column in a somewhat error-robust way."""
+		val = pd.Series(value, index=value.index if isinstance(value, pd.Series) else self.index, dtype="category")
+		val = val.cat.rename_categories(dict(zip([2, 'F', 'f', 'FEMALE', 1, 'M', 'm', 'MALE'], ['female']*4 + ['male']*4)))
+		self._obj[self.mkey_sex] = val
 
 	def colnames_translate(self, columns):
 		"""Translate names in columns to the canonical magic column names used by self."""
@@ -348,8 +357,8 @@ class Snptest(Phenotype):
 	"""Holds phenotypes in a format appropriate for Snptest
 	Documentation can be found here:
 	
+	https://www.well.ox.ac.uk/~gav/snptest/#input_file_formats
 	https://www.well.ox.ac.uk/~gav/qctool_v2/documentation/sample_file_formats.html
-	https://jmarchini.org/file-formats/
 	"""
 	__name__ = "Snptest"
 	MAGIC_COLS = {'ID_1'    : Phenotype.MAGIC_COLS['IID'],
@@ -366,11 +375,15 @@ class Snptest(Phenotype):
 		super().__init__(*args, phenovars = phenovars + covariates, **kwargs)
 		self._obj[self.mkey_altid] = self._obj.index
 		self._obj['missing'] = self._obj.get('missing', pd.Series(pd.NA * self._obj.index.size, index=self._obj.index))
-		self._obj[self.mkey_sex] = pd.Categorical(self._obj.get(self.mkey_sex, [""]*len(self._obj.index)))
-		self._obj[self.mkey_sex] = self._obj[self.mkey_sex].cat.rename_categories({0: pd.NA, 1: 'male', 2: 'female'})
+		self.sex = self._obj.get(self.mkey_sex, pd.NA * self._obj.index.size)
 		self.covariates = covariates
-		self.phenotypes = [p for p in self.columns if p not in covariates + list(self.MAGIC_COLS.keys())]
+		self.phenotypes = [p for p in self.colnames_normal if p not in covariates]
 		Snptest._validate(self)
+
+	@staticmethod
+	def _validate(self, warn=False):
+		# We call the parent function without the meta-magic cols, for these should be validated here.
+		Phenotype._validate(self[[self.mkey_sex] + self.colnames_normal], warn)
 
 	@property
 	def coltype(self):
@@ -383,42 +396,53 @@ class Snptest(Phenotype):
 		Sex of samples should be in column 'sex' of type D. Values in the column must be "f", "m", "male" or "female".
 		"""
 # WARNING: No proper support for binary traits yet... must only be '0 = control', or '1 = case'
-# coltype can find them, but they are not getting set as categorical from the stert. Should they be?
 # TODO: Use the types from the arguments and input files.
 		stype = pd.Series(index=self._obj.columns, dtype='object')
 		for colname in self._obj.columns:
 			Dtype = self._obj[colname].dropna().convert_dtypes().dtype
-			if colname in [self.mkey_id, self.mkey_altid, 'missing']:
-				stype[colname] = '0'
+			if colname in self.colnames_magic:
+				stype[colname] = 'D' if colname == self.mkey_sex else '0'
 			elif Dtype.name == 'category':
 				stype[colname] = 'B' if all(self._obj[colname].dropna().isin([0,1,'0','1','Case','case','Control','control'])) else 'D'
 			elif pd.api.types.is_numeric_dtype(Dtype):
 				stype[colname] = 'C'
 			elif Dtype.name == 'string':
 				stype[colname] = 'D'
-			else:
-				warnings.warn("Unable to properly identify datatype for column '{0}'. Setting to 'D' (Discrete values).".format(colname))
 		stype[self.covariates] = 'C'
 		stype[self.phenotypes] = 'P'
+		for nacol in stype.index[stype.isna()]:
+			logger.warning(f"Unable to properly identify datatype for column '{nacol}'. Setting to 'D' (Discrete values).")
+			stype[nacol] = 'D'
 		return stype
 
 	@property
 	def covariates(self):
 		return self._covariates
 
-	@property
-	def phenotypes(self):
-		return self._phenotypes
-
 	@covariates.setter
 	def covariates(self, value):
 		value = pd.Index(value)
 		self._covariates = value.intersection(self._obj.select_dtypes(include='number').columns).to_list()
 
+	@property
+	def phenotypes(self):
+		return self._phenotypes
+
 	@phenotypes.setter
 	def phenotypes(self, value):
 		value = pd.Index(value)
 		self._phenotypes = value.intersection(self._obj.select_dtypes(include='number').columns)
+
+# Probably don't need these guys: the Phenotype default should suffice
+#	@property
+#	def sex(self):
+#		"""Call getter from parent."""
+#		return super().sex
+
+#	@sex.setter
+#	def sex(self, value):
+#		"""Set the sex column."""
+#		super(Snptest, self.__class__).sex.fset(self, value)
 
 	def combine_first(self, other, *args, **kwargs):
 		"""Super(), then set covariates/phenotypes."""

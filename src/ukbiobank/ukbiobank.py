@@ -1,7 +1,6 @@
 
 
 import logging
-#import numpy as np
 import pandas as pd
 import re
 import sys
@@ -37,7 +36,7 @@ class UKBioBank(Phenotype):
 		phenovars: The UKBiobank datafield(s) to extract. (Named for compatibility with ancestor classes).
 		"""
 # NOTE: The second digit in datafields is called an 'instance'.
-# NOTE: The third is the array index.
+# NOTE: The third is the 'array index'.
 		def genfunc(dicttable, cols, rows=[], indexcol=0):
 			"""Will extract cols from a iterable dict table. Cols will be outputted only once regardless of duplicates"""
 			for dictrow in dicttable:
@@ -54,7 +53,7 @@ class UKBioBank(Phenotype):
 					icol.append(i)
 					found = True
 			if not found:
-				logger.error(f"UKBioBank: Datafield '{field}' does not exist in input data.")
+				logger.warning(f"UKBioBank: Datafield '{field}' does not exist in input data.")
 		logger.debug(f"UKBioBank: Selected columns {[list(headdict.keys())[i] for i in list(dict.fromkeys(icol))]}")
 		super().__init__(genfunc(iterable, icol, rows=samples), *args, columns=[list(headdict.keys())[i] for i in list(dict.fromkeys(icol))], samples=samples, **kwargs)
 		patone = re.compile("f\.")
@@ -69,6 +68,22 @@ class UKBioBank(Phenotype):
 		out[self[self.mkey_sex].pkisin(['1'])] = "male"
 		out[self[self.mkey_sex].pkisin(['0'])] = "female"
 		return out
+
+	def dc13toDate(self, fields):
+		"""Convert pseudo-dates in data coding 13 format to pythonic dates for specified fields.
+
+		Return: Copy of self where 'fields' are converted."""
+		def asPeriod(value):
+			try:
+				value = pd.NA if int(value) in [-1, -3] else pd.Period(freq='M', year=int(value), month=value %1 * 12)
+			except TypeError:
+				pass
+			return value
+
+		mycols = self.field2cols('20008')
+		self[mycols] = self[mycols]._obj.applymap(asPeriod)
+		logger.debug(f"dc13toDate: Converted subset (firstrow) = {self[mycols]._obj.iloc[0].to_list()}")
+		return self
 
 	def drop(self, labels, *args, **kwargs):
 		labels = self.field2cols(labels)
@@ -121,4 +136,8 @@ class UKBioBank(Phenotype):
 		out = out.mask(out.isin([-1,-3,'-1','-3']), other=pd.NA).dropna(axis='columns', how='all')
 		logger.debug(f"findinterpolated: field={field}; other={other}; values={values}; return={out.to_dict()}")
 		return out
+
+	def getfield(self, fields):
+		"""Lookup """
+		self
 

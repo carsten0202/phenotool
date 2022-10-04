@@ -65,15 +65,18 @@ https://doi.org/10.1371/journal.pone.0162388
 	return processor
 	
 
+
 #
 # -%  Prevalence Command (Chain Version)  %-
 
 @click.command(name="prevalence", no_args_is_help=True, epilog=EPILOG.chained)
 @click.pass_context
 @click.option('-b', '--baseline', default=str(Prevalence.UKBbaseline.date()), show_default=True, type=click.DateTime(formats=["%Y-%m-%d"]), help=OPTIONS.baseline)
+@click.option('--date/--no-date', default=False, show_default=True, help="NOT IMPLEMENTED")
+@click.option('--datename', default="Prevalence_date", show_default=True, help="NOT IMPLEMENTED")
 @click.option('-n', '--name', default="Prevalence", show_default=True, help=OPTIONS.columnname)
 @click.option('-s', '--style', default="eastwood", show_default=True, type=click.Choice(Prevalence.styles, case_sensitive=False), help=OPTIONS.prevstyles)
-def prevalence_ukb(ctx, baseline, name, style):
+def prevalence_ukb(ctx, baseline, date, datename, name, style):
 	"""Prevalence (diabetes) algorithm from Eastwood2016.
 
 The algorithm uses UK Biobank self-reported medical history and medication as well as hospital in-patient data to
@@ -89,6 +92,9 @@ https://doi.org/10.1371/journal.pone.0162388
 	def processor(pheno):
 		prevalence = Prevalence(pheno, baseline=baseline, style=style)
 		pheno[name] = prevalence.prevalence
+		if date:
+			logger.debug(f"date = {datename}")
+			pheno[datename] = prevalence.datediag()
 		return pheno
 
 	for field in Prevalence.UKBioFields:
