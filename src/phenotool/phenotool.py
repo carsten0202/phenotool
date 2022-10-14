@@ -13,7 +13,7 @@
 #
 # --%%  RUN: Perform Basic Setup  %%--
 
-__version__ = """0.12"""
+__version__ = """0.13"""
 
 import click
 from collections import namedtuple
@@ -172,11 +172,28 @@ https://jmarchini.org/file-formats/
 		pheno = pheno.combine_first(pheno_new)
 	pheno.write()
 
+@main.command(no_args_is_help=True, hidden=True)
+@click.argument('files', nargs=-1, type=gzFile(mode='rb'))
+@click.option('-c', '--columns', type=CSV(), default="", help=OPTIONS.columns)
+@click.option('--csv', 'formatflag', flag_value='csv', default=True, help=OPTIONS.csv)
+@click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
+@click.option('--tsv', 'formatflag', flag_value='tsv', help=OPTIONS.tsv)
+def textfile(files, columns, formatflag, samples):
+	"""HIGHLY EXPERIMENTAL: Output phenotypes in customizable text format."""
+	import pkpheno as Pheno
+	pheno = Pheno.TextFile.read_csv(files[0], phenovars=columns, samples=samples)
+	for fileobj in files[1:]:
+		pheno_new = Pheno.TextFile.read_csv(fileobj, phenovars=columns, samples=samples)
+		pheno = pheno.combine_first(pheno_new)
+	pheno.write()
+
+
 
 
 #
-# -%  UKBioBank Command Group  %-
+# -%  Add Commands to Main Group  %-
 
+# UKBioBank Command Group
 main.add_command(ukbiobank.ukbiobank)
 
 

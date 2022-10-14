@@ -24,7 +24,7 @@ class TextFile(Phenotype):
 	__name__ = "TextFile"
 
 	MAGIC_COLS = {'ID'    : Phenotype.MAGIC_COLS['IID'],
-	              'sex'   : Phenotype.MAGIC_COLS['SEX']}
+	              'SEX'   : Phenotype.MAGIC_COLS['SEX']}
 
 	mkey_id = "ID" # Also the index, so must be unique.
 

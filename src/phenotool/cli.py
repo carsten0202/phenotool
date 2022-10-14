@@ -192,9 +192,9 @@ def textfile_chain(ctx, files, columns, formatflag, samples):
 		ctx.obj['samples'] = list(dict.fromkeys(ctx.obj.get('samples', []) + samples))
 	from pkpheno import TextFile
 	ctx.obj['constructor'] = ctx.obj.get('constructor', TextFile)
-	ctx.obj['pheno'] = ctx.obj['constructor'](csv.DictReader(files[0]), phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
+	ctx.obj['pheno'] = ctx.obj['constructor'](files[0], phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
 	for fileobj in files[1:]:
-		pheno_new = ctx.obj['constructor'](csv.DictReader(fileobj), phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
+		pheno_new = ctx.obj['constructor'](fileobj, phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
 		ctx.obj['pheno'] = ctx.obj['pheno'].combine_first(pheno_new)
 	return processor
 

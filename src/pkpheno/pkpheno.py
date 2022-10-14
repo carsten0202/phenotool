@@ -48,9 +48,11 @@ class Phenotype:
 	def __init__(self, *args, phenovars=[], samples=[], **kwargs):
 		self._obj = pd.DataFrame(*args, **kwargs)
 		logger.info(f"{self.__name__}: Parsing file with columns[:10] = {self._obj.columns.to_list()[:10]}")
-		logger.debug(f"{self.__name__}: Parsing file with columns: {self._obj.columns.to_list()}")
 		self._obj = self._set_magic_kcol()
-		self._obj = self._obj.set_index(self.mkey_id)
+		if self.mkey_id != self._obj.index.name:
+			assert self.mkey_id in self._obj, f"Unable to identify primary identifier in one or more input files. Please make sure that each input file has a column with one of these recognized headings: {', '.join(self.MAGIC_COLS[self.mkey_id])}"
+			self._obj.set_index(self.mkey_id, inplace=True)
+		logger.debug(f"{self.__name__}: Using column '{self._obj.index.name}' as primary identifier")
 		self = self.set_columns(columns=phenovars)
 		if samples:
 			self.samples = samples
@@ -82,9 +84,9 @@ class Phenotype:
 		self._obj[key] = value
 
 	def _set_magic_kcol(self):
+		"""Rename the special magic columns."""
 		for k, v in self.MAGIC_COLS.items():
 			self._obj = self._obj.rename(dict(zip(v, [k] * len(v))), axis=1)
-		assert self.mkey_id in self._obj, f"Unable to identify primary identifier in one or more input files. Please make sure that each input file has a column with one of these recognized headings: {', '.join(self.MAGIC_COLS[self.mkey_id])}"
 		return self._obj
 
 	@staticmethod
@@ -115,6 +117,30 @@ class Phenotype:
 					first = columns_notok[0:3] + ['...'] if len(columns_notok) > 3 else columns_notok
 					logger.warning(f"Dataset contains {len(columns_notok)} phenotype(s) without any associated data {first}.")
 				logger.info(f"Phenotype '{column}' has no data associated with any subjects present in the data.")
+
+	@classmethod
+	def read_csv(cls, fileobj, *args, phenovars=[], samples=[], dialect=None, usecols=None, **kwargs):
+		"""Create an instance of cls from a csv file provided in 'fileobj'."""
+		header = fileobj.readline()
+		dialect = dialect if dialect else csv.Sniffer().sniff(header, delimiters=", \t")
+		logger.debug(f"Phenotype: Sniffer dialect = {dialect.__dict__}")
+		colnames = next(csv.reader([header], dialect=dialect))
+		logger.debug(f"Phenotype: Header[:10] = {colnames[:10]}")
+		if usecols:
+ 			assert not phenovars, "You must set one and only one of 'usecols' & 'phenovars'"
+ 			phenovars = usecols
+		dataf = cls._read_csv_callback(fileobj, *args, dialect=dialect, names=colnames, usecols=phenovars, **kwargs)
+		return cls(dataf, phenovars=phenovars, samples=samples)
+
+	@classmethod
+	def _read_csv_callback(cls, *args, usecols=None, **kwargs):
+		"""Callback function which can be overloaded to customize the read_csv call further."""
+		if usecols:
+			mylist = usecols + cls.MAGIC_COLS[cls.mkey_sex] + cls.MAGIC_COLS[cls.mkey_id]
+			usecols = lambda x: x in mylist
+		else:
+			usecols = None
+		return pd.read_csv(*args, usecols=usecols, **kwargs)
 
 	@property
 	def colnames(self):

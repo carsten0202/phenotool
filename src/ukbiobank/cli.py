@@ -7,7 +7,7 @@
 #       Maybe a function to dig up most recent annotation for a given application
 #               ie you'd supply an application nunmber rather than a file?
 
-__version__ = """0.5"""
+__version__ = """0.6"""
 
 import click
 import logging
@@ -62,7 +62,7 @@ https://biobank.ndph.ox.ac.uk/showcase/search.cgi
 	ctx.obj['phenovars'] = datafields
 	ctx.obj['samples'] = samples
 	ctx.obj['values'] = values
-	ctx.obj['constructor'] = UKBioBank
+	ctx.obj['constructor'] = UKBioBank.read_csv
 
 
 @ukbiobank.resultcallback()

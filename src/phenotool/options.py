@@ -74,11 +74,11 @@ tsv = """Sets output to tab-separated values.
 # -%  For UKBioBank  %-
 
 datafields = """
-Data Field(s) to output. Several fields can be specified as a comma-separated string with no spaces.
+Data Field(s) to output. Several fields can be specified as a comma-separated string with no spaces. Mandatory.
 """
 
 instances = """
-Instances to output. Several instances can be specified as a comma-separated string with no spaces.
+Instances to output. Several instances can be specified as a comma-separated string with no spaces. Optional.
 """
 
 values = """

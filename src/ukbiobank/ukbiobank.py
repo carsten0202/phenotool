@@ -1,5 +1,13 @@
+###########################################################
+#
+# ---%%%  ukbiobank.py: Home of the UKBioBank Class  %%%---
+#
 
+##################################################
+#
+# --%%  RUN: Perform Basic Setup  %%--
 
+import copy
 import logging
 import pandas as pd
 import re
@@ -8,8 +16,13 @@ import sys
 assert sys.version_info >= (3, 8), f"{sys.argv[0]} requires Python 3.8.0 or newer. Your version appears to be: '{sys.version}'."
 logger = logging.getLogger(__name__)
 
-#import pklib.pkcsv as csv
+import pklib.pkcsv as csv
 from pkpheno import Phenotype, Psam
+
+# --%%  END: Perform Basic Setup  %%--
+#
+##################################################
+
 
 
 
@@ -24,51 +37,61 @@ class UKBioBank(Phenotype):
 		"EID":     ["f.eid","eid"], # In Actuality, the ID 'column' isn't a column, it's the index.
 		"PAT":     Phenotype.MAGIC_COLS["PAT"],
 		"MAT":     Phenotype.MAGIC_COLS["MAT"],
-		"SEX":     ["f.31.0.0","31-0.0"], # UKB encodes as 0=female, but SEX should be encoded with males as '1', females as '2' and missing as '0' or 'NA'
+		"31" :     ["31_0_0"], # This needs to be the datafield number, not the actual column name in the input
+		                   # UKB encodes as 0=female, but SEX should be encoded with males as '1', females as '2' and missing as '0' or 'NA'
 	}
 
 	mkey_id    = "EID" # Also the index, so must be unique.
-	mkey_sex   = "SEX"
+	mkey_sex   = "31"
 
-	def __init__(self, iterable, *args, phenovars, samples=[], **kwargs):
-		"""
-		iterable: An iterable with data...
+	def __init__(self, *args, phenovars=[], **kwargs):
+		""" Create an instance of class UKBioBank
 		phenovars: The UKBiobank datafield(s) to extract. (Named for compatibility with ancestor classes).
 		"""
 # NOTE: The second digit in datafields is called an 'instance'.
 # NOTE: The third is the 'array index'.
-		def genfunc(dicttable, cols, rows=[], indexcol=0):
-			"""Will extract cols from a iterable dict table. Cols will be outputted only once regardless of duplicates"""
-			for dictrow in dicttable:
-				row = list(dictrow.values())
-				if not rows or row[indexcol] in rows:
-					yield [row[col] for col in list(dict.fromkeys(cols))]
+		super().__init__(*args, **kwargs)
+		indexframe = pd.DataFrame([coln.split("_") for coln in self._obj.columns])
+		self._obj.columns = pd.MultiIndex.from_frame(indexframe, names=['datafield','instance','array_index'])
+		if fields := set(phenovars) - set(self.datafields):
+			logger.warning(f"UKBioBank: One or more datafields did not exist in input data: {fields}")
+		logger.debug(f"UKBioBank: Processed dataframe:\n{self._obj}")
 
-		icol = [0]
-		headdict = next(iterable)
-		for field in phenovars + [31]:
-			found = False
-			for i, col in enumerate(headdict):
-				if re.match(f"\D*{field}\D", col) is not None:
-					icol.append(i)
-					found = True
-			if not found:
-				logger.warning(f"UKBioBank: Datafield '{field}' does not exist in input data.")
-		logger.debug(f"UKBioBank: Selected columns {[list(headdict.keys())[i] for i in list(dict.fromkeys(icol))]}")
-		super().__init__(genfunc(iterable, icol, rows=samples), *args, columns=[list(headdict.keys())[i] for i in list(dict.fromkeys(icol))], samples=samples, **kwargs)
-		patone = re.compile("f\.")
-		pattwo = re.compile("[-.]")
-		self._obj = self._obj.rename(columns=lambda label: pattwo.sub("_",patone.sub('f',label)))
-		logger.debug(f"UKBioBank: Renamed columns {list(self._obj.columns)}")
+	@classmethod
+	def _read_csv_callback(cls, *args, names=None, usecols=None, **kwargs):
+		"""Callback function which can be overloaded to customize the read_csv call further."""
+		assert usecols, "You must use '--datafields' option to specify at least one datafield for extraction."
+		magicols = '|'.join(cls.MAGIC_COLS[cls.mkey_id] + cls.MAGIC_COLS[cls.mkey_sex])
+		pattern = re.compile(f"({'_|'.join(usecols)}_|{magicols})")
+		usecols = lambda x: pattern.match(x)
+		names = [re.sub("[f.]*([0-9]+).([0-9]+).([0-9]+)","\\1_\\2_\\3", n) for n in names]
+		return pd.read_csv(*args, names=names, usecols=usecols, **kwargs)
+
+	@property
+	def datafields(self):
+		return self._obj.columns.get_level_values('datafield').to_list()
 
 	@property
 	def sex(self):
-		"""Returns the SEX in a systematic way (male/female) for querying."""
+		"""Returns the SEX in a systematic way (male/female) for querying.
+		Overloaded for MultiIndexed columns."""
 		out = pd.Series([pd.NA] * self._obj.index.size, name=self.mkey_sex, index=self._obj.index)
-		out[self[self.mkey_sex].pkisin(['1'])] = "male"
-		out[self[self.mkey_sex].pkisin(['0'])] = "female"
+		out[self[self.mkey_sex,'0','0'].pkisin(['1'])] = "male"
+		out[self[self.mkey_sex,'0','0'].pkisin(['0'])] = "female"
 		return out
 
+	def __getitem__(self, key):
+		"""Overloaded for MultiIndexed columns."""
+		out = copy.deepcopy(self)
+		out._obj = out._obj.loc[:,tuple(key)]
+		return out
+
+	def _set_magic_kcol(self, *args, **kwargs):
+		"""Local function to handle specific UKB problems like the multiindex."""
+		df = super()._set_magic_kcol(*args,**kwargs)
+		df.rename({self.mkey_sex:f'{self.mkey_sex}_0_0'}, axis=1, inplace=True)
+		return df
+		
 	def dc13toDate(self, fields):
 		"""Convert pseudo-dates in data coding 13 format to pythonic dates for specified fields.
 
@@ -86,12 +109,13 @@ class UKBioBank(Phenotype):
 		return self
 
 	def drop(self, labels, *args, **kwargs):
+		"""This not updated for MultiIndex. May not be needed anymore?"""
 		labels = self.field2cols(labels)
 		return super().drop(labels, *args, **kwargs)
 
 	def field2cols(self, fields):
 		"""Find all column names containing 'field' using regex."""
-
+		"""This not updated for MultiIndex. May not be needed anymore?"""
 		if isinstance(fields, str):
 			fields = [fields]
 		fields = [f"f{field}_" for field in fields]
@@ -109,6 +133,7 @@ class UKBioBank(Phenotype):
 
 		Note: It seems -1 and -3 are consistently used to indicate 'missing' in UKB. This is implemented here.
 		"""
+		"""This not updated for MultiIndex. May not be needed anymore?"""
 		# Ok, here's a serious bug. Value 'NA' in UKB doesn't mean 'pd.NA', rather it means False.
 		mymask = self[self.field2cols(fields)].pkisin(['-1','-3'])
 		if instances is not None:
@@ -128,6 +153,7 @@ class UKBioBank(Phenotype):
 
 		Return: A pandas obj with values from field corresponding to values were found in other.
 		"""
+		"""This not updated for MultiIndex. May not be needed anymore?"""
 		cols1 = self.field2cols(field)
 		cols2 = self.field2cols(other)
 		mask = self[cols2].pkisin(values)
@@ -137,7 +163,23 @@ class UKBioBank(Phenotype):
 		logger.debug(f"findinterpolated: field={field}; other={other}; values={values}; return={out.to_dict()}")
 		return out
 
-	def getfield(self, fields):
-		"""Lookup """
-		self
+#	def getfield(self, fields):
+#		"""Lookup """
+#		self
+
+	def to_textfile(self):
+		"""Convert Phenotype Class to Class TextFile for custom file output.
+		Overloaded for MultiIndex."""
+		from pkpheno.textfile import TextFile
+		obj = self._obj.drop(columns=[self.mkey_id, self.mkey_sex, getattr(self, 'mkey_altid', None)], level=0, errors='ignore')
+		obj.columns = ["_".join(c) for c in obj.columns.to_flat_index()]
+		obj[TextFile.mkey_id] = self.index
+		obj[TextFile.mkey_sex] = self.sex
+		try: obj[TextFile.mkey_altid] = self._obj[self.mkey_altid]
+		except AttributeError:
+			pass
+		textfile = TextFile(obj)
+		return textfile
+
+
 
