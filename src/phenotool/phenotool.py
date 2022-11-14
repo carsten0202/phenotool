@@ -13,7 +13,7 @@
 #
 # --%%  RUN: Perform Basic Setup  %%--
 
-__version__ = """0.13"""
+__version__ = """0.14"""
 
 import click
 from collections import namedtuple
@@ -108,9 +108,9 @@ https://www.cog-genomics.org/plink/1.9/formats#fam
 	assert sum([1 for x in [columns,fam] if x]) <= 1, "'--columns' and '--fam' are mutually exclusive; please only specify one of them."
 	if fam:
 		columns = [fam]
-	pheno = Pheno.Psam(csv.DictReader(files[0]), phenovars=columns, samples=samples)
+	pheno = Pheno.Psam.read_csv(files[0], phenovars=columns, samples=samples)
 	for fileobj in files[1:]:
-		pheno_new = Pheno.Psam(csv.DictReader(fileobj), phenovars=columns, samples=samples)
+		pheno_new = Pheno.Psam.read_csv(fileobj, phenovars=columns, samples=samples)
 		pheno = pheno.combine_first(pheno_new)
 	pheno.write(header = False if fam else True)
 
@@ -131,9 +131,9 @@ http://zhanxw.github.io/rvtests/#phenotype-file
 """
 	import pkpheno as Pheno
 	import pandas as pd
-	pheno = Pheno.RVtest(csv.DictReader(files[0]), phenovars=columns, samples=samples)
+	pheno = Pheno.RVtest.read_csv(files[0], phenovars=columns, samples=samples)
 	for fileobj in files[1:]:
-		pheno_new = Pheno.RVtest(csv.DictReader(fileobj), phenovars=columns, samples=samples)
+		pheno_new = Pheno.RVtest.read_csv(fileobj, phenovars=columns, samples=samples)
 		pheno = pheno.combine_first(pheno_new)
 	pheno.write()
 
@@ -166,18 +166,18 @@ Unofficial, but good (Scroll down):
 https://jmarchini.org/file-formats/
 """
 	import pkpheno as Pheno
-	pheno = Pheno.Snptest(csv.DictReader(files[0]), covariates=covariates, phenovars=phenotypes, samples=samples)
+	pheno = Pheno.Snptest.read_csv(files[0], covariates=covariates, phenovars=phenotypes, samples=samples)
 	for fileobj in files[1:]:
-		pheno_new = Pheno.Snptest(csv.DictReader(fileobj), covariates=covariates, phenovars=phenotypes, samples=samples)
+		pheno_new = Pheno.Snptest.read_csv(fileobj, covariates=covariates, phenovars=phenotypes, samples=samples)
 		pheno = pheno.combine_first(pheno_new)
 	pheno.write()
 
 @main.command(no_args_is_help=True, hidden=True)
 @click.argument('files', nargs=-1, type=gzFile(mode='rb'))
 @click.option('-c', '--columns', type=CSV(), default="", help=OPTIONS.columns)
-@click.option('--csv', 'formatflag', flag_value='csv', default=True, help=OPTIONS.csv)
+@click.option('--csv', 'formatflag', flag_value=',', default=True, help=OPTIONS.csv)
 @click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
-@click.option('--tsv', 'formatflag', flag_value='tsv', help=OPTIONS.tsv)
+@click.option('--tsv', 'formatflag', flag_value='\t', help=OPTIONS.tsv)
 def textfile(files, columns, formatflag, samples):
 	"""HIGHLY EXPERIMENTAL: Output phenotypes in customizable text format."""
 	import pkpheno as Pheno
@@ -185,7 +185,7 @@ def textfile(files, columns, formatflag, samples):
 	for fileobj in files[1:]:
 		pheno_new = Pheno.TextFile.read_csv(fileobj, phenovars=columns, samples=samples)
 		pheno = pheno.combine_first(pheno_new)
-	pheno.write()
+	pheno.write(sep=formatflag)
 
 
 

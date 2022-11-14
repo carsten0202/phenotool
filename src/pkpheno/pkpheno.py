@@ -411,6 +411,13 @@ class Snptest(Phenotype):
 		# We call the parent function without the meta-magic cols, for these should be validated here.
 		Phenotype._validate(self[[self.mkey_sex] + self.colnames_normal], warn)
 
+	@classmethod
+	def read_csv(cls, fileobj, *args, covariates=[], phenovars=[], samples=[], dialect=None, usecols=None, **kwargs):
+		"""Create an instance of cls from a csv file provided in 'fileobj'."""
+		obj = super(Snptest, cls).read_csv(fileobj, *args, phenovars=[], samples=[], dialect=None, usecols=None, **kwargs)
+		obj.covariates = covariates
+		return obj
+
 	@property
 	def coltype(self):
 		"""Set the column type for the pseudo-type-header in sample files.

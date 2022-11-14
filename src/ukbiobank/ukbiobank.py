@@ -38,7 +38,7 @@ class UKBioBank(Phenotype):
 		"PAT":     Phenotype.MAGIC_COLS["PAT"],
 		"MAT":     Phenotype.MAGIC_COLS["MAT"],
 		"31" :     ["31_0_0"], # This needs to be the datafield number, not the actual column name in the input
-		                   # UKB encodes as 0=female, but SEX should be encoded with males as '1', females as '2' and missing as '0' or 'NA'
+		                       # UKB encodes as 0=female, but SEX should be encoded with males as '1', females as '2' and missing as '0' or 'NA'
 	}
 
 	mkey_id    = "EID" # Also the index, so must be unique.
@@ -167,18 +167,32 @@ class UKBioBank(Phenotype):
 #		"""Lookup """
 #		self
 
+	def to_psam(self):
+		from pkpheno.pkpheno import Psam as Cons
+		return self._to_something_multiindex(Cons)
+
+	def to_rvtest(self):
+		from pkpheno.pkpheno import RVtest as Cons
+		return self._to_something_multiindex(Cons)
+
+	def to_snptest(self, covariates=[]):
+		from pkpheno.pkpheno import Snptest as Cons
+		return self._to_something_multiindex(Cons)
+
 	def to_textfile(self):
-		"""Convert Phenotype Class to Class TextFile for custom file output.
-		Overloaded for MultiIndex."""
-		from pkpheno.textfile import TextFile
+		from pkpheno.textfile import TextFile as Cons
+		return self._to_something_multiindex(Cons)
+
+	def _to_something_multiindex(self, cons):
+		"""Convert Phenotype Classes must be Overloaded for MultiIndex."""
 		obj = self._obj.drop(columns=[self.mkey_id, self.mkey_sex, getattr(self, 'mkey_altid', None)], level=0, errors='ignore')
 		obj.columns = ["_".join(c) for c in obj.columns.to_flat_index()]
-		obj[TextFile.mkey_id] = self.index
-		obj[TextFile.mkey_sex] = self.sex
-		try: obj[TextFile.mkey_altid] = self._obj[self.mkey_altid]
+		obj[cons.mkey_id] = self.index
+		obj[cons.mkey_sex] = self.sex
+		try: obj[cons.mkey_altid] = self._obj[self.mkey_altid]
 		except AttributeError:
 			pass
-		textfile = TextFile(obj)
+		textfile = cons(obj)
 		return textfile
 
 

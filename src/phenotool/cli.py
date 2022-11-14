@@ -61,10 +61,10 @@ https://www.cog-genomics.org/plink/1.9/formats#fam
 	ctx.obj['phenovars'] = list(dict.fromkeys(ctx.obj.get('phenovars', []) + columns)) # Clever little trick to get unique list
 	if samples:
 		ctx.obj['samples'] = list(dict.fromkeys(ctx.obj.get('samples', []) + samples)) if ctx.obj.get('samples') else samples
-	ctx.obj['constructor'] = ctx.obj.get('constructor', Psam)
-	ctx.obj['pheno'] = ctx.obj['constructor'](csv.DictReader(files[0]), phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
+	ctx.obj['constructor'] = ctx.obj.get('constructor', Psam.read_csv)
+	ctx.obj['pheno'] = ctx.obj['constructor'](files[0], phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
 	for fileobj in files[1:]:
-		pheno_new = ctx.obj['constructor'](csv.DictReader(fileobj), phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
+		pheno_new = ctx.obj['constructor'](fileobj, phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
 		ctx.obj['pheno'] = ctx.obj['pheno'].combine_first(pheno_new)
 
 	def processor(pheno):
@@ -99,10 +99,10 @@ http://zhanxw.github.io/rvtests/#phenotype-file
 	ctx.obj['phenovars'] = list(dict.fromkeys(ctx.obj.get('phenovars', []) + columns)) # Clever little trick to get unique list
 	if samples:
 		ctx.obj['samples'] = list(dict.fromkeys(ctx.obj.get('samples', []) + samples))
-	ctx.obj['constructor'] = ctx.obj.get('constructor', RVtest)
-	ctx.obj['pheno'] = ctx.obj['constructor'](csv.DictReader(files[0]), phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
+	ctx.obj['constructor'] = ctx.obj.get('constructor', RVtest.read_csv)
+	ctx.obj['pheno'] = ctx.obj['constructor'](files[0], phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
 	for fileobj in files[1:]:
-		pheno_new = ctx.obj['constructor'](csv.DictReader(fileobj), phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
+		pheno_new = ctx.obj['constructor'](fileobj, phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
 		ctx.obj['pheno'] = ctx.obj['pheno'].combine_first(pheno_new)
 
 	def processor(pheno):
@@ -153,14 +153,14 @@ https://jmarchini.org/file-formats/
 		pheno.write()
 		return pheno
 
-	from pkpheno.pkpheno import Snptest
 	ctx.obj['phenovars'] = list(dict.fromkeys(ctx.obj.get('phenovars', []) + covariates + phenotypes)) # Clever little trick to get unique list
 	if samples:
 		ctx.obj['samples'] = list(dict.fromkeys(ctx.obj.get('samples', []) + samples))
-	ctx.obj['constructor'] = ctx.obj.get('constructor', Snptest)
-	ctx.obj['pheno'] = ctx.obj['constructor'](csv.DictReader(files[0]), phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
+	from pkpheno.pkpheno import Snptest
+	ctx.obj['constructor'] = ctx.obj.get('constructor', Snptest.read_csv)
+	ctx.obj['pheno'] = ctx.obj['constructor'](files[0], phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
 	for fileobj in files[1:]:
-		pheno_new = ctx.obj['constructor'](csv.DictReader(fileobj), phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
+		pheno_new = ctx.obj['constructor'](fileobj, phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
 		ctx.obj['pheno'] = ctx.obj['pheno'].combine_first(pheno_new)
 	return processor
 
@@ -173,25 +173,24 @@ https://jmarchini.org/file-formats/
 @click.pass_context
 @click.argument('files', nargs=-1, type=gzFile(mode='rb'))
 @click.option('-c', '--columns', type=CSV(), default="", help=OPTIONS.columns)
-@click.option('--csv', 'formatflag', flag_value='csv', default=True, help=OPTIONS.csv)
+@click.option('--csv', 'formatflag', flag_value=',', default=True, help=OPTIONS.csv)
 @click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
-@click.option('--tsv', 'formatflag', flag_value='tsv', help=OPTIONS.tsv)
+@click.option('--tsv', 'formatflag', flag_value='\t', help=OPTIONS.tsv)
 def textfile_chain(ctx, files, columns, formatflag, samples):
 	"""Output phenotypes in customizable text format."""
 	def processor(pheno):
 		if ctx.obj.get('to_be_deleted'):
 			pheno = pheno.drop(ctx.obj['to_be_deleted'], axis='columns')
 		pheno = pheno.to_textfile()
-		pheno.write()
+		pheno.write(sep=ctx.obj['formatflag'])
 		return pheno
 
-	assert formatflag == 'csv', "Sorry, textfile currently only supports csv output. This will change in future versions."
-
+	ctx.obj['formatflag'] = formatflag
 	ctx.obj['phenovars'] = list(dict.fromkeys(ctx.obj.get('phenovars', []) + columns)) # Clever little trick to get unique list
 	if samples:
 		ctx.obj['samples'] = list(dict.fromkeys(ctx.obj.get('samples', []) + samples))
 	from pkpheno import TextFile
-	ctx.obj['constructor'] = ctx.obj.get('constructor', TextFile)
+	ctx.obj['constructor'] = ctx.obj.get('constructor', TextFile.read_csv)
 	ctx.obj['pheno'] = ctx.obj['constructor'](files[0], phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
 	for fileobj in files[1:]:
 		pheno_new = ctx.obj['constructor'](fileobj, phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
