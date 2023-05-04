@@ -18,17 +18,21 @@ logger = logging.getLogger(__name__)
 # --%%  DEFINE: TestFile class .  %%--
 
 class TextFile(Phenotype):
-	"""Holds phenotypes in a custom text format for flexible output.
-	"""
+    """Holds phenotypes in a custom text format for flexible output.
+    """
+    __name__ = "TextFile"
+    MAGIC_COLS = {'ID'    : Phenotype.MAGIC_COLS['IID'],
+                  'sex'   : Phenotype.MAGIC_COLS['SEX']}
+    mkey_id = 0 # Also the index, so must be unique.
+    FORMATFLAGS = {'csv' : ',',
+                   'tsv' : '\t'}
 
-	__name__ = "TextFile"
+    def __init__(self, *args, **kwargs):
+        """Init the TextFile object."""
+        super().__init__(*args, **kwargs)
 
-	MAGIC_COLS = {'ID'    : Phenotype.MAGIC_COLS['IID'],
-	              'sex'   : Phenotype.MAGIC_COLS['SEX']}
+    def write(self, sep="tsv", dest=sys.stdout, *args, **kwargs):
+        """Output with support for textfile formatflags."""
+        super().write(*args, sep=self.FORMATFLAGS[sep], **kwargs)
 
-	mkey_id = "ID" # Also the index, so must be unique.
-
-	def __init__(self, *args, **kwargs):
-		"""Init the TextFile object."""
-		super().__init__(*args, **kwargs)
 

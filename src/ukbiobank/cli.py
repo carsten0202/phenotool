@@ -20,6 +20,7 @@ import eastwood.cli as Eastwood
 import phenotool.cli as Phenotool
 import phenotool.options as OPTIONS
 import phenotool.epilog as EPILOG
+from phenotool.textfile import textfile_chain
 import pklib.pkcsv as csv
 from pklib.pkclick import CSV, gzFile, SampleList
 from pkpheno.pkpheno import Phenotype
@@ -65,7 +66,7 @@ https://biobank.ndph.ox.ac.uk/showcase/search.cgi
 	ctx.obj['constructor'] = UKBioBank
 
 
-@ukbiobank.resultcallback()
+@ukbiobank.result_callback()
 @click.pass_context
 def process_pipeline(ctx, processors, datafields, instances, log, samples, values):
 	logger.debug(f"Pipeline: Cols to be deleted: {ctx.obj.get('to_be_deleted')}")
@@ -79,7 +80,7 @@ def process_pipeline(ctx, processors, datafields, instances, log, samples, value
 # -%  Add Command on External Commands (Chained Versions)  %-
 
 # CSV output command (Chained version)
-ukbiobank.add_command(Phenotool.textfile_chain)
+ukbiobank.add_command(textfile_chain)
 
 # Eastwood Incidence Command (UKBioBank Version)
 ukbiobank.add_command(Eastwood.incidence_ukb)

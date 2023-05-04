@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 import phenotool.cli as Phenotool
 import phenotool.options as OPTIONS
 import phenotool.epilog as EPILOG
+from phenotool.textfile import textfile_chain
 from pklib.pkclick import CSV, gzFile, Timedelta
 import pklib.pkcsv as csv
 from eastwood.eastwood import Incidence, Prevalence
@@ -136,7 +137,7 @@ https://doi.org/10.1371/journal.pone.0162388
 	ctx.obj['phenovars'] = Incidence.UKBioFields
 	ctx.obj['to_be_deleted'] = Incidence.UKBioFields
 
-@incidence.resultcallback()
+@incidence.result_callback()
 @click.pass_context
 def incidence_pipeline(ctx, processors, baseline, enddate, interval, prefix):
 	logger.debug(f"Pipeline: Cols to be deleted: {ctx.obj.get('to_be_deleted')}")
@@ -152,7 +153,7 @@ def incidence_pipeline(ctx, processors, baseline, enddate, interval, prefix):
 
 
 # CSV output command (Cahined version)
-incidence.add_command(Phenotool.textfile_chain)
+incidence.add_command(textfile_chain)
 
 # Plink output command (Chained version)
 incidence.add_command(Phenotool.plink_chain)
@@ -195,7 +196,7 @@ https://doi.org/10.1371/journal.pone.0162388
 	ctx.obj['phenovars'] = Prevalence.UKBioFields
 	ctx.obj['to_be_deleted'] = Prevalence.UKBioFields
 
-@prevalence.resultcallback()
+@prevalence.result_callback()
 @click.pass_context
 def prevalence_pipeline(ctx, processors, baseline, name, style):
 	logger.debug(f"Pipeline: Cols to be deleted: {ctx.obj.get('to_be_deleted')}")
@@ -209,7 +210,7 @@ def prevalence_pipeline(ctx, processors, baseline, name, style):
 
 
 # CSV output command (Cahined version)
-prevalence.add_command(Phenotool.textfile_chain)
+prevalence.add_command(textfile_chain)
 
 # Plink output command (Chained version)
 prevalence.add_command(Phenotool.plink_chain)

@@ -1,7 +1,25 @@
+
+
 [build-system]
 requires = [
     "setuptools>=49",
-    "wheel"
+    "wheel",
 ]
 build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "phenotool"
+authors = [
+    "Carsten Friis Rundsten <carsten.rundsten@sund.ku.dk>",
+]
+requires-python = ">=3.10" 
+dependencies = [
+    "click>8.0",
+    "pandas>2.0",
+]
+dynamic = ["version"]
+
+[tool.setuptools.dynamic]
+version = {attr = "my_package.VERSION"}
 

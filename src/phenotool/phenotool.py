@@ -25,9 +25,10 @@ ScriptPath = str(pathlib.Path(__file__).resolve().parent.absolute())
 sys.path = [ScriptPath + '/..'] + sys.path
 
 from phenotool.stdcommand import StdCommand
-from phenotool.cli import plink_chain, rvtest_chain, snptest_chain, textfile_chain
+from phenotool.cli import plink_chain, rvtest_chain, snptest_chain
 import phenotool.epilog as EPILOGS
 import phenotool.options as OPTIONS
+from phenotool.textfile import textfile, textfile_chain
 import pklib.pkcsv as csv
 from pklib.pkclick import CSV, gzFile, SampleList
 from pkpep import pkpep
@@ -172,13 +173,13 @@ https://jmarchini.org/file-formats/
 		pheno = pheno.combine_first(pheno_new)
 	pheno.write()
 
+main.add_command(textfile)
 
 
 #
 # -%  UKBioBank Command Group  %-
 
 main.add_command(ukbiobank.ukbiobank)
-
 
 
 #
@@ -194,7 +195,7 @@ This command group provides access to some of the mathematical functions in the 
 	# ensure that ctx.obj exists and is a dict
 	ctx.ensure_object(dict)
 
-@derive.resultcallback()
+@derive.result_callback()
 @click.pass_context
 def derive_pipeline(ctx, processors):
 	logger.debug(f"Pipeline: Cols to be deleted: {ctx.obj.get('to_be_deleted')}")
