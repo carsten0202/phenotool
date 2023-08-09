@@ -1,0 +1,53 @@
+#%Module1.0#######################################################################
+#
+# Phenotool
+#
+# Author:       Carsten Friis Rundsten
+# Date:         02/08/2023
+#
+#################################################################################
+
+#
+# Help messages
+
+proc ModulesHelp { } {
+   set name [file dirname [module-info name]]
+   set version [file tail [module-info name]]
+   puts stderr "\tLoads the ${name} version ${version} environment"
+   puts stderr "\tFor further information, use 'module display [module-info name]'"
+}
+
+proc ModulesDisplay { } {
+   puts stderr "\nPhenotool is a collection of commonly used tools for manipulating phenotype files and/or other table-based formats."
+}
+
+
+#
+# Variables, Conflicts and Prereqs, Whatis
+
+set name [file dirname [module-info name]]
+set version [file tail [module-info name]]
+
+conflict "${name}"
+#prereq "bcftools"
+#prereq "mamba"
+
+module-whatis "${name} ${version} - Phenotool is a collection of commonly used tools for manipulating phenotype files and/or other table-based formats."
+
+
+#
+# Modify environment variables
+
+set basedir "/projects/cbmr_shared/apps/modules/software/${name}/${version}"
+
+# Add bin to PATH
+prepend-path PATH "${basedir}/bin"
+
+# Add python lib to PYTHONPATH
+prepend-path PYTHONPATH "${basedir}/"
+
+# Set database variables
+if { ![info exists ::env(SNPTOOL_DATABASE_PATH)] } {
+    setenv UKBIOBANK_PHENOTYPE_FILE "/datasets/ukb_32683-AUDIT/phenotypes/cur/ukb671687.tab.gz"
+}
+

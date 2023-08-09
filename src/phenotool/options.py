@@ -10,11 +10,6 @@ covariates = """
 Comma separated list of columns with covariates. Print only these columns (plus any mandatory columns)
 """
 
-fam = """
-Output fam format for plink1.9. If specified, takes one mandatory argument stating the column name of the phenotype to
-include in the sixth fam file column.
-"""
-
 files = """
 Input File(s). %(prog)s accepts one or more input files including '-' symbolizing stdin. The precise format of each
 input file will be autodetected, but it should be some form of delimited text data file like 'csv' or tab-delimited.
@@ -22,6 +17,10 @@ input file will be autodetected, but it should be some form of delimited text da
 
 log = """
 Control logging. Valid levels: 'debug', 'info', 'warning', 'error', 'critical'.
+"""
+
+nrows = """
+Read only 'nrows' lines from the input file(s) (header excluded). Intended for speedy testing on large datafiles. Default is to read all lines from input.
 """
 
 phenotypes = """
@@ -34,6 +33,14 @@ including outputting samples with missing values if no phenotype information was
 text file with sample names or a VCF file with sample genotypes.
 """
 
+
+#
+# -%  For Plink  %-
+
+fam = """
+Output fam format for plink1.9. If specified, takes one mandatory argument stating the column name of the phenotype to
+include in the sixth fam file column.
+"""
 
 
 #
@@ -70,16 +77,9 @@ csv = """Sets output to comma-separated values.
 tsv = """Sets output to tab-separated values.
 """
 
+
 #
 # -%  For UKBioBank  %-
-
-datafields = """
-Data Field(s) to output. Several fields can be specified as a comma-separated string with no spaces.
-"""
-
-instances = """
-Instances to output. Several instances can be specified as a comma-separated string with no spaces.
-"""
 
 values = """
 Only subject having this value in at least one of the specified data field(s) will be printed. Note that this uses

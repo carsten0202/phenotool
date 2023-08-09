@@ -11,15 +11,22 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "phenotool"
 authors = [
-    "Carsten Friis Rundsten <carsten.rundsten@sund.ku.dk>",
+    { name = "Carsten Friis Rundsten", email = "carsten.rundsten@sund.ku.dk" },
 ]
-requires-python = ">=3.10" 
+description = "My package description"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "GNU-GLPv3"}
 dependencies = [
     "click>8.0",
     "pandas>2.0",
 ]
 dynamic = ["version"]
 
+[project.scripts]
+phenotool = "phenotool.cli:main"
+ukbiobank = "ukbiobank.cli:ukbiobank"
+
 [tool.setuptools.dynamic]
-version = {attr = "my_package.VERSION"}
+version = {attr = "phenotool.VERSION"}
 

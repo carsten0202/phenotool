@@ -13,10 +13,7 @@ import sys
 assert sys.version_info >= (3, 8), f"{sys.argv[0]} requires Python 3.8.0 or newer. Your version appears to be: '{sys.version}'."
 logger = logging.getLogger(__name__)
 
-import phenotool.cli as Phenotool
-import phenotool.options as OPTIONS
-import phenotool.epilog as EPILOG
-from phenotool.textfile import textfile_chain
+from phenotool import EPILOG, OPTIONS, plink_chain, rvtest_chain, snptest_chain, textfile_chain
 from pklib.pkclick import CSV, gzFile, Timedelta
 import pklib.pkcsv as csv
 from eastwood.eastwood import Incidence, Prevalence
@@ -156,13 +153,13 @@ def incidence_pipeline(ctx, processors, baseline, enddate, interval, prefix):
 incidence.add_command(textfile_chain)
 
 # Plink output command (Chained version)
-incidence.add_command(Phenotool.plink_chain)
+incidence.add_command(plink_chain)
 
 # CSV output command (Cahined version)
-incidence.add_command(Phenotool.rvtest_chain)
+incidence.add_command(rvtest_chain)
 
 # Plink output command (Chained version)
-incidence.add_command(Phenotool.snptest_chain)
+incidence.add_command(snptest_chain)
 
 
 
@@ -213,11 +210,11 @@ def prevalence_pipeline(ctx, processors, baseline, name, style):
 prevalence.add_command(textfile_chain)
 
 # Plink output command (Chained version)
-prevalence.add_command(Phenotool.plink_chain)
+prevalence.add_command(plink_chain)
 
 # CSV output command (Cahined version)
-prevalence.add_command(Phenotool.rvtest_chain)
+prevalence.add_command(rvtest_chain)
 
 # Plink output command (Chained version)
-prevalence.add_command(Phenotool.snptest_chain)
+prevalence.add_command(snptest_chain)
 
