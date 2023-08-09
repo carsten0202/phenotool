@@ -28,7 +28,7 @@ dependencies = [
 dynamic = ["version"]
 
 [project.scripts]
-phenotool = "phenotool.cli:main"
+phenotool = "cli:Phenotool"
 ukbiobank = "ukbiobank.cli:ukbiobank"
 
 [tool.setuptools.dynamic]
