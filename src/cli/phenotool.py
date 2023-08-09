@@ -22,12 +22,12 @@ ScriptPath = str(pathlib.Path(__file__).resolve().parent.absolute())
 sys.path = [ScriptPath + '/..'] + sys.path
 
 from cli.version import __version__
+from cli.ukbiobank import ukbiobank
 from phenotool.stdcommand import StdCommand
 from phenotool import OPTIONS, plink, plink_chain, rvtest, rvtest_chain, snptest, snptest_chain, textfile, textfile_chain
 import pklib.pkcsv as csv
 from pklib.pkclick import CSV, gzFile, SampleList
 from pkpep import pkpep
-import ukbiobank.cli as ukbiobank
 
 # --%%  END: Perform Basic Setup  %%--
 #
@@ -86,7 +86,7 @@ main.add_command(rvtest)
 main.add_command(textfile)
 
 # UKBioBank Command Group
-main.add_command(ukbiobank.ukbiobank)
+main.add_command(ukbiobank)
 
 
 
