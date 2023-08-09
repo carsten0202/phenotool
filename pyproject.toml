@@ -20,6 +20,7 @@ requires-python = ">=3.10"
 license = {text = "GNU-GLPv3"}
 dependencies = [
     "click>8.0",
+    "numpy>1.23",
     "pandas>2.0",
     "scipy>1.9",
 ]
@@ -27,7 +28,7 @@ dynamic = ["version"]
 
 [project.scripts]
 phenotool = "cli:Phenotool"
-ukbiobank = "ukbiobank.cli:ukbiobank"
+ukbiobank = "cli:UKBiobank"
 
 [tool.setuptools.dynamic]
 version = {attr = "cli.version.__version__ "}
