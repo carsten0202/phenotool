@@ -12,9 +12,6 @@
 #
 # --%%  RUN: Perform Basic Setup  %%--
 
-__version__ = """0.12.1"""
-# v0.12.1: Fixed a ton of parsing errors
-
 import click
 from collections import namedtuple
 import logging
@@ -25,7 +22,7 @@ ScriptPath = str(pathlib.Path(__file__).resolve().parent.absolute())
 sys.path = [ScriptPath + '/..'] + sys.path
 
 from phenotool.stdcommand import StdCommand
-from phenotool import OPTIONS, plink, plink_chain, rvtest, rvtest_chain, snptest, snptest_chain, textfile, textfile_chain
+from phenotool import OPTIONS, plink, plink_chain, rvtest, rvtest_chain, snptest, snptest_chain, textfile, textfile_chain, __version__
 import pklib.pkcsv as csv
 from pklib.pkclick import CSV, gzFile, SampleList
 from pkpep import pkpep

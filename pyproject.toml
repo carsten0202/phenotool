@@ -32,5 +32,5 @@ phenotool = "phenotool.cli:main"
 ukbiobank = "ukbiobank.cli:ukbiobank"
 
 [tool.setuptools.dynamic]
-version = {attr = "phenotool.VERSION"}
+version = {attr = "phenotool.version.__version__ "}
 
