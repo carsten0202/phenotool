@@ -3,7 +3,7 @@
 # Phenotool
 #
 # Author:       Carsten Friis Rundsten
-# Date:         02/08/2023
+# Date:         05/09/2023
 #
 #################################################################################
 
@@ -18,7 +18,9 @@ proc ModulesHelp { } {
 }
 
 proc ModulesDisplay { } {
-   puts stderr "\nPhenotool is a collection of commonly used tools for manipulating phenotype files and/or other table-based formats."
+   puts stderr "\nPhenotool is a tool for manipulating phenotype files and/or other table-based formats. It is designed with particular focus on GWAS.\n"
+   puts stderr "\tphenotool - The core tool from where all functions are available."
+   puts stderr "\tukbiobank - Collection of UKBioBank-specific tools. Use to extract specifics from UKB phenotypes."
 }
 
 
@@ -29,10 +31,9 @@ set name [file dirname [module-info name]]
 set version [file tail [module-info name]]
 
 conflict "${name}"
-#prereq "bcftools"
 #prereq "mamba"
 
-module-whatis "${name} ${version} - Phenotool is a collection of commonly used tools for manipulating phenotype files and/or other table-based formats."
+module-whatis "${name} ${version} - Phenotool is a tool for manipulating phenotype files and/or other table-based formats. It is designed with preparation for GWAS in mind."
 
 
 #
@@ -48,6 +49,6 @@ prepend-path PYTHONPATH "${basedir}/"
 
 # Set database variables
 if { ![info exists ::env(SNPTOOL_DATABASE_PATH)] } {
-    setenv UKBIOBANK_PHENOTYPE_FILE "/datasets/ukb_32683-AUDIT/phenotypes/cur/ukb671687.tab.gz"
+    setenv UKBIOBANK_PHENOTYPE_FILE "/datasets/ukb_32683-AUDIT/phenotypes/2023-08-30/ukb674540.tab.gz"
 }
 

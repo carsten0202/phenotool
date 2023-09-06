@@ -9,7 +9,7 @@ import logging
 import sys
 
 from phenotool import OPTIONS, Psam
-from pklib.pkclick import CSV, gzFile, SampleList
+from pklib.pkclick import CSV, isalFile, SampleList
 import pklib.pkcsv as csv
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
     
 @click.command(no_args_is_help=True)
 @click.pass_obj
-@click.argument('files', nargs=-1, type=gzFile(mode='rb'))
+@click.argument('files', nargs=-1, type=isalFile(mode='rb'))
 @click.option('-c', '--columns', type=CSV(), default="", help=OPTIONS.columns)
 @click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
 def rvtest(obj, files, columns, samples):
@@ -48,7 +48,7 @@ http://zhanxw.github.io/rvtests/#phenotype-file
 
 @click.command(name="rvtest", no_args_is_help=True)
 @click.pass_obj
-@click.argument('files', nargs=-1, type=gzFile(mode='rb'))
+@click.argument('files', nargs=-1, type=isalFile(mode='rb'))
 @click.option('-c', '--columns', type=CSV(), default="", help=OPTIONS.columns)
 @click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
 def rvtest_chain(obj, files, columns, samples):
@@ -70,7 +70,8 @@ http://zhanxw.github.io/rvtests/#phenotype-file
 
     try: obj['args']
     except KeyError: obj['args'] = dict()
-    obj['args']['phenovars'] = list(dict.fromkeys(obj['args'].get('phenovars', []) + columns)) # Clever little trick to get unique list
+    if columns:
+        obj['args']['phenovars'] = list(dict.fromkeys(obj['args'].get('phenovars', []) + obj.get('to_be_deleted', []) + columns)) # Clever little trick to get unique list
     if samples:
         obj['samples'] = list(dict.fromkeys(obj.get('samples', []) + samples))
     obj['constructor'] = obj.get('constructor', RVtest)

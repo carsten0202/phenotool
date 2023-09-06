@@ -2,8 +2,6 @@
 #
 # --%%  Define shared help (epilog) strings  %%--
 
-# EPILOG = namedtuple('Epilog', ['legal'])(
-
 chained = """
 To perform an actual run, specify one or more of the commands given above. Each command has it's own options and help
 page (accessible with '--help'. You can mix and match commands in which case they will be executed sequentially - even

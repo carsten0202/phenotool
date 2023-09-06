@@ -14,7 +14,7 @@ import pandas as pd
 import sys
 
 from phenotool import EPILOG, OPTIONS, Phenotype
-from pklib.pkclick import CSV, gzFile, SampleList
+from pklib.pkclick import CSV, isalFile, SampleList
 import pklib.pkcsv as csv
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 @click.command(no_args_is_help=True)
 @click.pass_obj
-@click.argument('files', nargs=-1, type=gzFile(mode='rb'))
+@click.argument('files', nargs=-1, type=isalFile(mode='rb'))
 @click.option('-c', '--columns', type=CSV(), default="", help=OPTIONS.columns)
 @click.option('--csv', 'formatflag', flag_value='csv', help=OPTIONS.csv)
 @click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
@@ -48,7 +48,7 @@ def textfile(obj, files, columns, formatflag, samples):
 
 @click.command(name="textfile", no_args_is_help=True, epilog=EPILOG.chained)
 @click.pass_obj
-@click.argument('files', nargs=-1, type=gzFile(mode='rb'))
+@click.argument('files', nargs=-1, type=isalFile(mode='rb'))
 @click.option('-c', '--columns', type=CSV(), default="", help=OPTIONS.columns)
 @click.option('--csv', 'formatflag', flag_value='csv', help=OPTIONS.csv)
 @click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
@@ -64,7 +64,8 @@ def textfile_chain(obj, files, columns, formatflag, samples):
 
     try: obj['args']
     except KeyError: obj['args'] = dict()
-    obj['args']['phenovars'] = list(dict.fromkeys(obj['args'].get('phenovars', []) + columns)) # Clever little trick to get unique list
+    if columns:
+        obj['args']['phenovars'] = list(dict.fromkeys(obj['args'].get('phenovars', []) + obj.get('to_be_deleted', []) + columns)) # Clever little trick to get unique list
     if samples:
         obj['args']['samples'] = list(dict.fromkeys(obj.get('samples', []) + samples))
     obj['constructor'] = obj.get('constructor', TextFile)
@@ -96,6 +97,10 @@ class TextFile(Phenotype):
     def __init__(self, *args, **kwargs):
         """Init the TextFile object."""
         super().__init__(*args, **kwargs)
+
+    def to_textfile(self):
+        """No conversion necessary; self is already TextFile."""
+        return self
 
     def write(self, sep="tsv", dest=sys.stdout, *args, **kwargs):
         """Output with support for textfile formatflags."""

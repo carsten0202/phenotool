@@ -65,7 +65,7 @@ class Phenotype:
             self.samples = samples
         self = self._set_magic_kcol()
         self.df = self.df.set_index(self.mkey_id)
-        self = self._conform_columns(columns=self.field2cols(phenovars).to_list())
+        self = self._conform_columns(columns=self.field2cols(phenovars))
         Phenotype._validate(self)
         logger.debug(f"{self.__name__}: Columns after __init__ = {self.columns.to_list()}")
 
@@ -154,7 +154,7 @@ class Phenotype:
     @property
     def colnames_normal(self):
         """Return: All colnames in _obj which are not magical as list."""
-        return [col for col in self._obj.columns if col not in self.colnames_magic]
+        return [col for col in self.columns if col not in self.colnames_magic]
 
     @property
     def columns(self):
@@ -216,20 +216,37 @@ class Phenotype:
     def combine_first(self, other):
         """Return: Combined DataFrame from self and other."""
         if isinstance(other, Phenotype):
-            self._obj = self._obj.combine_first(other=other._obj)
+            self.df = self.df.combine_first(other=other.df)
         else:
-            self._obj = self._obj.combine_first(other=other)
-        self._obj = self._obj.fillna(np.NaN)
+            self.df = self.df.combine_first(other=other)
+        self.df = self.df.fillna(np.NaN)
         return self
 
-    def derive_rankINT(self, columns=None):
-        """Return: DataFrame with results from a rank-based inverse normally transformation on cols given by
-        'columns'.
+    def derive_minmax(self, columns=None):
+        """Return: DataFrame with results scaling according to algorithm and cols given by 'columns'.
         Default: All normal columns."""
         columns = self.colnames_translate(columns) if columns else self.colnames_normal
         df = pd.DataFrame()
         for col in columns:
-            df[col] = rank_INT(self._obj[col])
+            df[col] = pklib.scaler_min_max(self.df[col])
+        return df
+
+    def derive_rankINT(self, columns=None):
+        """Return: DataFrame with results from a rank-based inverse normally transformation on cols given by 'columns'.
+        Default: All normal columns."""
+        columns = self.colnames_translate(columns) if columns else self.colnames_normal
+        df = pd.DataFrame()
+        for col in columns:
+            df[col] = pklib.rank_int(self.df[col])
+        return df
+
+    def derive_zscores(self, columns=None):
+        """Return: DataFrame with results scaling according to algorithm and cols given by 'columns'.
+        Default: All normal columns."""
+        columns = self.colnames_translate(columns) if columns else self.colnames_normal
+        df = pd.DataFrame()
+        for col in columns:
+            df[col] = pklib.scaler_min_max(self.df[col])
         return df
 
     def drop(self, *args, **kwargs):
@@ -245,7 +262,7 @@ class Phenotype:
         for field in fields:
             out = pd.concat([out, cols[cols.str.contains(str(field), regex=True)]])
         logger.debug(f"field2cols: Fields={fields}; Found cols={out.to_list()}.")
-        return out
+        return out.to_list()
 
     def findfield(self, fields):
         """Find all column names containing fields and return those as DataFrame."""
@@ -283,7 +300,7 @@ class Phenotype:
         list_ = [0,"0","B","C","D","P"]
         return all(self._obj.iloc[0].isin(list_))
 
-    def pkisin(self, values):
+    def pkisin(self, columns, values):
         """Convienience function to check for 'values' using both numeric and string in df.isin()."""
         if isinstance(values, str):
             values = [values]
@@ -293,7 +310,7 @@ class Phenotype:
                 out.append(float(value))
             elif isinstance(value, Number):
                 out.append(str(value))
-        return self._obj.isin(out)
+        return self.df[columns].isin(out)
 
     def to_psam(self):
         """Convert Phenotype Class to Class Psam for Plink output."""
@@ -412,8 +429,8 @@ def rank_INT(series, c=3.0/8, stochastic=True):
         param3 (Optional[bool]):  Whether to randomise rank of ties
     Returns:
         pandas.Series
-    Inspired by
-    https://www.well.ox.ac.uk/~gav/qctool_v2/documentation/sample_file_formats.html
+    Inspired by:
+        https://www.well.ox.ac.uk/~gav/qctool_v2/documentation/sample_file_formats.html
     """
     import pandas as pd
     import scipy.stats as ss

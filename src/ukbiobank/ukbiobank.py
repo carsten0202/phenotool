@@ -9,7 +9,6 @@ import sys
 assert sys.version_info >= (3, 8), f"{sys.argv[0]} requires Python 3.8.0 or newer. Your version appears to be: '{sys.version}'."
 logger = logging.getLogger(__name__)
 
-#import pklib.pkcsv as csv
 from phenotool import Phenotype
 
 
@@ -23,24 +22,29 @@ class UKBioBank(Phenotype):
     __name__ = "UKBioBank"
     MAGIC_COLS = {
         "EID":       ["f.eid","eid"], # In Actuality, the ID 'column' isn't a column, it's the index.
-        "PAT":       Phenotype.MAGIC_COLS["PAT"],
-        "MAT":       Phenotype.MAGIC_COLS["MAT"],
         "SEX":       ["f.31.0.0","31-0.0"], # UKB encodes as 0=female, but SEX should be encoded with males as '1', females as '2' and missing as '0' or 'NA'
     }
 
     mkey_id      = "EID" # Also the index, so must be unique.
     mkey_sex     = "SEX"
 
-    def __init__(self, iterable, *args, phenovars, samples=[], sexcol=None, values=None, **kwargs):
+    sex_dict = {
+        "genetic":  ["f.22001.0.0","22001-0.0"],
+        "registry": ["f.31.0.0","31-0.0"],
+    }
+
+    def __init__(self, iterable, *args, instances=[], phenovars, samples=[], sexcol=None, values=None, **kwargs):
         """
         iterable: An iterable with data...
         phenovars: The UKBiobank datafield(s) to extract. (Named for compatibility with ancestor classes).
         """
-# TODO: Fix 'sex'
 # NOTE: The second digit in datafields is called an 'instance'.
 # NOTE: The third is the 'array index'.
-        sexcol = 31 # TODO: Fix the sex col
-        super().__init__(iterable, *args, usecols=lambda x: any([re.match(f'(f\D|){y}\D', x) for y in phenovars + ['ei', sexcol]]), phenovars=phenovars, samples=samples, **kwargs)
+        self.MAGIC_COLS[self.mkey_sex] = self.sex_dict.get(sexcol, [])
+        if instances:
+            phenovars = [f"{p}\D[{''.join(instances)}]" for p in phenovars]
+        col_fun = lambda x: any([re.match(f'(f\D|){p}\D', x) for p in phenovars] + [x in list(itertools.chain.from_iterable(self.MAGIC_COLS.values()))])
+        super().__init__(iterable, *args, usecols=col_fun, phenovars=phenovars, samples=samples, **kwargs)
 
     def _conform_columns(self, columns=[]):
         """Overloads generic to set standardized names of ukb columns regardless of tab/csv origin.
@@ -56,9 +60,21 @@ class UKBioBank(Phenotype):
     def sex(self):
         """Returns the SEX in a systematic way (male/female) for querying."""
         out = pd.Series([pd.NA] * self._obj.index.size, name=self.mkey_sex, index=self._obj.index)
-        out[self[self.mkey_sex].pkisin(['1'])] = "male"
-        out[self[self.mkey_sex].pkisin(['0'])] = "female"
+        try:
+            out[self.pkisin(self.mkey_sex, ['0', 'female'])] = "female"
+            out[self.pkisin(self.mkey_sex, ['1', 'male'])] = "male"
+        except KeyError:
+            pass
         return out
+
+    @sex.setter
+    def sex(self, value):
+        """Sets the sex column in a somewhat error-robust way."""
+        try: value = value.squeeze()
+        except: pass
+        val = pd.Series(value, index=value.index if isinstance(value, pd.Series) else self.index, dtype="category")
+        val = val.cat.rename_categories(dict(zip([0, 2, 'F', 'f', 'FEMALE', 1, 'M', 'm', 'MALE'], ['female']*5 + ['male']*4)))
+        self.df[self.mkey_sex] = val
 
     def dc13toDate(self, fields):
         """Convert pseudo-dates in data coding 13 format to pythonic dates for specified fields.
@@ -78,13 +94,13 @@ class UKBioBank(Phenotype):
     def drop(self, labels=None, index=None, columns=None, *args, **kwargs):
         if labels is not None:
             labels = self.field2cols(labels)
-            return super().drop(labels, *args, **kwargs)
+            return super().drop(labels=labels, *args, **kwargs)
         if index is not None:
             index = self.field2cols(index)
-            return super().drop(index, *args, **kwargs)
+            return super().drop(index=index, *args, **kwargs)
         if columns is not None:
             columns = self.field2cols(columns)
-            return super().drop(columns, *args, **kwargs)
+            return super().drop(columns=columns, *args, **kwargs)
         raise TypeError("Drop should have one and only one of labels, index or columns speficied.")
 
     def field2cols(self, fields):

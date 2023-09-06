@@ -10,7 +10,7 @@ import pandas as pd
 import sys
 
 from phenotool import OPTIONS, Phenotype
-from pklib.pkclick import CSV, gzFile, SampleList
+from pklib.pkclick import CSV, isalFile, SampleList
 import pklib.pkcsv as csv
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 @click.command(no_args_is_help=True)
 @click.pass_obj
-@click.argument('files', nargs=-1, type=gzFile(mode='rb'))
+@click.argument('files', nargs=-1, type=isalFile(mode='rb'))
 @click.option('-c', '--columns', type=CSV(), default="", help=OPTIONS.columns)
 @click.option('-f', '--fam', type=str, metavar='COLUMN', default=None, help=OPTIONS.fam)
 @click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
@@ -35,13 +35,14 @@ are present in the input, then the program tries to guess which input columns mi
 The guessing uses common synonyms, eg mapping 'gender' to 'SEX'. It also maps across supported formats mapping 'ID_1'
 (snptest) to 'IID'.
 
+\b
 For more on the psam format please refer to:
 https://www.cog-genomics.org/plink/2.0/formats#psam
 
 A properly formatted fam file (plink1.9) has *no* header, but expects the following six columns in exact order: 'FID',
-'IID', 'PAT', MAT', 'SEX', and one final phenotype column. The plink1.9 fam format only supports one phenotype. To work
-with more than one phenotype in plink1.9 the psam files prepared by this program are designed to be readable as an
-alternate phenotype file in plink1.9.
+'IID', 'PAT', MAT', 'SEX', and one final phenotype column. The plink1.9 fam format only supports one phenotype. If more
+than one phenotype is needed in plink1.9, then the psam files prepared by this program are designed to be readable as
+an alternate phenotype file in plink1.9.
 
 \b
 For more on alternate phenotype files in plink1.9, please refer to:
@@ -69,9 +70,9 @@ https://www.cog-genomics.org/plink/1.9/formats#fam
 #
 # -%  Plink Command; Chained Version  %-
 
-@click.command(name="plink", no_args_is_help=True)
+@click.command(name="plink")
 @click.pass_obj
-@click.argument('files', nargs=-1, type=gzFile(mode='rb'))
+@click.argument('files', nargs=-1, type=isalFile(mode='rb'))
 @click.option('-c', '--columns', type=CSV(), default="", help=OPTIONS.columns)
 @click.option('-f', '--fam', type=str, metavar='COLUMN', default=None, help=OPTIONS.fam)
 @click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
@@ -84,13 +85,14 @@ are present in the input, then the program tries to guess which input columns mi
 The guessing uses common synonyms, eg mapping 'gender' to 'SEX'. It also maps across supported formats mapping 'ID_1'
 (snptest) to 'IID'.
 
+\b
 For more on the psam format please refer to:
 https://www.cog-genomics.org/plink/2.0/formats#psam
 
 A properly formatted fam file (plink1.9) has *no* header, but expects the following six columns in exact order: 'FID',
-'IID', 'PAT', MAT', 'SEX', and one final phenotype column. The plink1.9 fam format only supports one phenotype. To work
-with more than one phenotype in plink1.9 the psam files prepared by this program are designed to be readable as an
-alternate phenotype file in plink1.9.
+'IID', 'PAT', MAT', 'SEX', and one final phenotype column. The plink1.9 fam format only supports one phenotype. If more
+than one phenotype is needed in plink1.9, then the psam files prepared by this program are designed to be readable as
+an alternate phenotype file in plink1.9.
 
 \b
 For more on alternate phenotype files in plink1.9, please refer to:
@@ -109,17 +111,20 @@ https://www.cog-genomics.org/plink/1.9/formats#fam
 
     assert sum([1 for x in [columns,fam] if x]) <= 1, "'--columns' and '--fam' are mutually exclusive; please only specify one of them."
     if fam:
-        if columns:
-            logger.warning(f"Note that the '--columns' option is ignored when setting '--fam'.")
+        if columns or obj['args'].get('phenovars'):
+            logger.warning(f"Note that all other column output options are ignored when setting '--fam'.")
         columns = [fam]
+        obj['args']['phenovars'] = list()
         obj['fam'] = True
     try: obj['args']
     except KeyError: obj['args'] = dict()
-    obj['args']['phenovars'] = list(dict.fromkeys(obj['args'].get('phenovars', []) + columns)) # Clever little trick to get unique list
+    if columns:
+        obj['args']['phenovars'] = list(dict.fromkeys(obj['args'].get('phenovars', []) + obj.get('to_be_deleted', []) + columns)) # Clever little trick to get unique list
     if samples:
         obj['samples'] = list(dict.fromkeys(obj.get('samples', []) + samples)) if obj.get('samples') else samples
     obj['constructor'] = obj.get('constructor', Psam)
-    for fobj in files:
+    obj['files'].extend(files)
+    for fobj in obj['files']:
         if (dialect := csv.sniff(fobj)) is None:
             fobj = csv.DictReader(fobj)
         pheno_new = obj['constructor'](fobj, dialect=dialect, **obj['args'])

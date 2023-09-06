@@ -10,7 +10,7 @@ import pandas as pd
 import sys
 
 from phenotool import OPTIONS, Phenotype
-from pklib.pkclick import CSV, gzFile, SampleList
+from pklib.pkclick import CSV, isalFile, SampleList
 import pklib.pkcsv as csv
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 @click.command(no_args_is_help=True)
 @click.pass_obj
-@click.argument('files', nargs=-1, type=gzFile(mode='rb'))
+@click.argument('files', nargs=-1, type=isalFile(mode='rb'))
 @click.option('-c', '--covariates', type=CSV(), default="", help=OPTIONS.covariates)
 @click.option('-p', '--phenotypes', type=CSV(), default="", help=OPTIONS.phenotypes)
 @click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
@@ -37,7 +37,7 @@ The guessing uses common synonyms, eg mapping 'gender' to 'sex'. It also maps ac
 functional files for columns 'ID_2' (using 'ID_1' values) and 'missing' (using missing values).
 
 Furthermore a snptest sample file must have phenotypes and covariates explicitly stated as such. Since this information
-cannot be inferred form the data alone, the user should provide this using the '--covariates' and '--phenotypes'
+cannot be inferred from the data alone, the user should provide this using the '--covariates' and '--phenotypes'
 options documented below.
 
 \b
@@ -63,12 +63,12 @@ https://jmarchini.org/file-formats/
 
 
 @click.command(name="snptest", no_args_is_help=True)
-@click.pass_context
-@click.argument('files', nargs=-1, type=gzFile(mode='rb'))
+@click.pass_obj
+@click.argument('files', nargs=-1, type=isalFile(mode='rb'))
 @click.option('-c', '--covariates', type=CSV(), default="", help=OPTIONS.covariates)
 @click.option('-p', '--phenotypes', type=CSV(), default="", help=OPTIONS.phenotypes)
 @click.option('-s', '--samples', type=SampleList(mode='rb'), help=OPTIONS.samples)
-def snptest_chain(ctx, files, covariates, phenotypes, samples):
+def snptest_chain(obj, files, covariates, phenotypes, samples):
     """Output phenotypes in sample format for use with Snptest.
 
 A properly formatted snptest sample (*.sam) file must contain the columns 'ID_1', 'ID_2', 'missing' and 'sex' in that
@@ -79,7 +79,7 @@ The guessing uses common synonyms, eg mapping 'gender' to 'sex'. It also maps ac
 functional files for columns 'ID_2' (using 'ID_1' values) and 'missing' (using missing values).
 
 Furthermore a snptest sample file must have phenotypes and covariates explicitly stated as such. Since this information
-cannot be inferred form the data alone, the user should provide this using the '--covariates' and '--phenotypes'
+cannot be inferred from the data alone, the user should provide this using the '--covariates' and '--phenotypes'
 options documented below.
 
 \b
@@ -91,21 +91,28 @@ Unofficial, but good (Scroll down):
 https://jmarchini.org/file-formats/
 """
     def processor(pheno):
-        if ctx.obj.get('to_be_deleted'):
-            pheno.df = pheno.drop(ctx.obj['to_be_deleted'], axis='columns')
+        if obj.get('to_be_deleted'):
+            pheno.df = pheno.drop(obj['to_be_deleted'], axis='columns')
         pheno = pheno.to_snptest(covariates = covariates)
         pheno.write()
         return pheno
 
-    ctx.obj['phenovars'] = list(dict.fromkeys(ctx.obj.get('phenovars', []) + covariates + phenotypes)) # Clever little trick to get unique list
+    try: obj['args']
+    except KeyError: obj['args'] = dict()
+    if phenotypes:
+        obj['args']['phenovars']  = list(dict.fromkeys(obj['args'].get('phenovars', []) + obj.get('to_be_deleted', []) + phenotypes)) # Clever little trick to get unique list
+    obj['args']['covariates'] = covariates
     if samples:
-        ctx.obj['samples'] = list(dict.fromkeys(ctx.obj.get('samples', []) + samples))
-    ctx.obj['constructor'] = ctx.obj.get('constructor', Snptest)
-    ctx.obj['pheno'] = ctx.obj['constructor'](csv.DictReader(files[0]), phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
-    for fileobj in files[1:]:
-        pheno_new = ctx.obj['constructor'](csv.DictReader(fileobj), phenovars=ctx.obj['phenovars'], samples=ctx.obj.get('samples'))
-        ctx.obj['pheno'] = ctx.obj['pheno'].combine_first(pheno_new)
+        obj['samples'] = list(dict.fromkeys(obj.get('samples', []) + samples))
+    obj['constructor'] = obj.get('constructor', Snptest)
+    for fobj in files:
+        if (dialect := csv.sniff(fobj)) is None:
+            fobj = csv.DictReader(fobj)
+        pheno_new = obj['constructor'](fobj, dialect=dialect, **obj['args'])
+        try: obj['pheno'] = obj['pheno'].combine_first(pheno_new)
+        except KeyError: obj['pheno'] = pheno_new
     return processor
+
 
 
 
@@ -139,8 +146,11 @@ class Snptest(Phenotype):
 
     def __init__(self, *args, phenovars=[], covariates=[], **kwargs):
         """Init the Snptest object. Phenovars are labelled as phenotypes unless given in covariates."""
-        super().__init__(*args, phenovars = phenovars + covariates, **kwargs)
-        self._obj[self.mkey_altid] = self._obj.index
+        if phenovars:
+            super().__init__(*args, phenovars = phenovars + covariates, **kwargs)
+        else:
+            super().__init__(*args, **kwargs)
+        self.df[self.mkey_altid] = self.index
         self._obj['missing'] = self._obj.get('missing', pd.Series(pd.NA * self._obj.index.size, index=self._obj.index))
         self.sex = self._obj.get(self.mkey_sex, pd.NA * self._obj.index.size)
         self.covariates = covariates
@@ -215,9 +225,9 @@ class Snptest(Phenotype):
             return super().to_snptest(self.covariates)
 
     def write(self, *args, dest=sys.stdout, **kwargs):
-# NOTE: All phenotypes should appear after the covariates in this file.
-        self = self.set_columns()
-        print(' '.join([self.mkey_id] + self._obj.columns.to_list()))
+        # All phenotypes should appear after the covariates in this file.
+        self.df = self.df[filter(lambda c: c in self.colnames, list(dict.fromkeys(self.colnames_magic + self.covariates.to_list() + self.colnames)))]
+        print(' '.join([self.mkey_id] + self.colnames))
         print(' '.join(['0'] + self.coltype.to_list()))
         super().write(dest, *args, sep=' ', na_rep='NA', header=False, **kwargs)
 
